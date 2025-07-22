@@ -22,5 +22,5 @@ import { ChatInterfaceComponent } from './components/chat-interface/chat-interfa
   `]
 })
 export class AppComponent {
-  title = 'Apple Chat Interface';
+  title = 'Chatbot';
 }

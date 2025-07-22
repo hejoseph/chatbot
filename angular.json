@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "apple-chat-interface": {
+    "chatbot": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -17,7 +17,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
-            "outputPath": "dist/apple-chat-interface",
+            "outputPath": "dist/chatbot",
             "index": "src/index.html",
             "main": "src/main.ts",
             "polyfills": [
@@ -70,10 +70,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "apple-chat-interface:build:production"
+              "buildTarget": "chatbot:build:production"
             },
             "development": {
-              "buildTarget": "apple-chat-interface:build:development"
+              "buildTarget": "chatbot:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -81,7 +81,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "buildTarget": "apple-chat-interface:build"
+            "buildTarget": "chatbot:build"
           }
         },
         "test": {
