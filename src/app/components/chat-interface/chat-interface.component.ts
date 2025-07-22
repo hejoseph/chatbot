@@ -8,6 +8,7 @@ import { ChatHeaderComponent } from '../chat-header/chat-header.component';
 import { MessageListComponent } from '../message-list/message-list.component';
 import { MessageInputComponent } from '../message-input/message-input.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
+import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
 
 @Component({
   selector: 'app-chat-interface',
@@ -18,7 +19,8 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
     ChatHeaderComponent, 
     MessageListComponent, 
     MessageInputComponent,
-    SidebarComponent
+    SidebarComponent,
+    SettingsModalComponent
   ],
   template: `
     <div class="chat-interface">
@@ -28,7 +30,8 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
         (sessionSelected)="onSessionSelected($event)"
         (newChat)="onNewChat()"
         (sessionDeleted)="onSessionDeleted($event)"
-        (closeSidebar)="toggleSidebar()">
+        (closeSidebar)="toggleSidebar()"
+        (openSettings)="openSettingsModal()">
       </app-sidebar>
       
       <div class="main-chat" [class.sidebar-open]="sidebarVisible">
@@ -54,6 +57,12 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
         [class.visible]="sidebarVisible"
         (click)="toggleSidebar()">
       </div>
+      
+      <app-settings-modal
+        [isVisible]="settingsModalVisible"
+        (closeModal)="closeSettingsModal()"
+        (settingsSaved)="onSettingsSaved($event)">
+      </app-settings-modal>
     </div>
   `,
   styles: [`
@@ -114,6 +123,7 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
   currentSession: ChatSession | null = null;
   isTyping = false;
   sidebarVisible = false;
+  settingsModalVisible = false;
   
   private destroy$ = new Subject<void>();
 
@@ -171,5 +181,24 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
 
   toggleSidebar(): void {
     this.sidebarVisible = !this.sidebarVisible;
+  }
+
+  openSettingsModal(): void {
+    this.settingsModalVisible = true;
+  }
+
+  closeSettingsModal(): void {
+    this.settingsModalVisible = false;
+  }
+
+  onSettingsSaved(apiKeys: any[]): void {
+    // Handle the saved API keys - you can integrate this with your chat service
+    console.log('API keys saved:', apiKeys);
+    // You might want to update the chat service with the active API key
+    const activeKey = apiKeys.find(key => key.isActive);
+    if (activeKey) {
+      // Update your chat service with the active API key
+      console.log('Active API key:', activeKey);
+    }
   }
 }

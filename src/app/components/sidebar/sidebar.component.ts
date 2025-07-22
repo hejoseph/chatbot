@@ -62,6 +62,15 @@ import { ChatSession } from '../../models/message.model';
             <span class="user-name">User</span>
             <span class="user-status">Online</span>
           </div>
+          <button 
+            class="settings-button"
+            (click)="openSettings.emit()"
+            aria-label="Open settings">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M10 1v2m0 14v2M4.22 4.22l1.42 1.42m8.72 8.72l1.42 1.42M1 10h2m14 0h2M4.22 15.78l1.42-1.42m8.72-8.72l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
       </div>
       
@@ -268,6 +277,23 @@ import { ChatSession } from '../../models/message.model';
       color: var(--apple-green);
     }
 
+    .settings-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .settings-button:hover {
+      background: var(--background-tertiary);
+      color: var(--text-primary);
+    }
+
     .close-sidebar-button {
       position: absolute;
       top: var(--spacing-md);
@@ -330,6 +356,7 @@ export class SidebarComponent {
   @Output() newChat = new EventEmitter<void>();
   @Output() sessionDeleted = new EventEmitter<string>();
   @Output() closeSidebar = new EventEmitter<void>();
+  @Output() openSettings = new EventEmitter<void>();
 
   getLastMessage(session: ChatSession): string {
     if (session.messages.length === 0) {
