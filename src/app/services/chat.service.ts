@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, delay, of } from 'rxjs';
 import { Message, ChatSession } from '../models/message.model';
+import { IndexedDBService } from './indexeddb.service';
 
 @Injectable({
   providedIn: 'root'
@@ -17,8 +18,37 @@ export class ChatService {
   private currentSessionId = 'default';
   private messageIdCounter = 1;
 
-  constructor() {
-    this.initializeDefaultSession();
+  constructor(private indexedDBService: IndexedDBService) {
+    this.initializeApp();
+  }
+
+  private async initializeApp(): Promise<void> {
+    try {
+      // Load existing sessions from IndexedDB
+      const savedSessions = await this.indexedDBService.loadSessions();
+      
+      if (savedSessions.length > 0) {
+        // Restore sessions from storage
+        this.sessionsSubject.next(savedSessions);
+        
+        // Find the active session or use the first one
+        const activeSession = savedSessions.find(s => s.isActive) || savedSessions[0];
+        this.currentSessionId = activeSession.id;
+        this.messagesSubject.next(activeSession.messages);
+        
+        // Update message ID counter to avoid conflicts
+        const allMessages = savedSessions.flatMap(s => s.messages);
+        const maxId = Math.max(...allMessages.map(m => parseInt(m.id) || 0), 0);
+        this.messageIdCounter = maxId;
+      } else {
+        // No saved sessions, create default
+        this.initializeDefaultSession();
+      }
+    } catch (error) {
+      console.error('Error loading sessions from IndexedDB:', error);
+      // Fallback to default session
+      this.initializeDefaultSession();
+    }
   }
 
   private initializeDefaultSession(): void {
@@ -40,6 +70,9 @@ export class ChatService {
 
     this.sessionsSubject.next([defaultSession]);
     this.messagesSubject.next(defaultSession.messages);
+    
+    // Save to IndexedDB
+    this.saveSessionsToStorage();
   }
 
   sendMessage(content: string): void {
@@ -127,6 +160,16 @@ export class ChatService {
     );
     
     this.sessionsSubject.next(updatedSessions);
+    this.saveSessionsToStorage();
+  }
+
+  private async saveSessionsToStorage(): Promise<void> {
+    try {
+      const sessions = this.sessionsSubject.value;
+      await this.indexedDBService.saveSessions(sessions);
+    } catch (error) {
+      console.error('Error saving sessions to IndexedDB:', error);
+    }
   }
 
   private generateSessionTitle(messages: Message[]): string {
@@ -165,6 +208,9 @@ export class ChatService {
     this.currentSessionId = newSessionId;
     this.messagesSubject.next(newSession.messages);
     
+    // Save to IndexedDB
+    this.saveSessionsToStorage();
+    
     return newSessionId;
   }
 
@@ -181,21 +227,45 @@ export class ChatService {
       this.sessionsSubject.next(updatedSessions);
       this.currentSessionId = sessionId;
       this.messagesSubject.next(targetSession.messages);
+      
+      // Save to IndexedDB
+      this.saveSessionsToStorage();
     }
   }
 
-  deleteSession(sessionId: string): void {
+  async deleteSession(sessionId: string): Promise<void> {
     const sessions = this.sessionsSubject.value;
     const filteredSessions = sessions.filter(s => s.id !== sessionId);
     
-    if (filteredSessions.length === 0) {
-      this.initializeDefaultSession();
-    } else {
-      this.sessionsSubject.next(filteredSessions);
+    try {
+      // Delete from IndexedDB first
+      await this.indexedDBService.deleteSession(sessionId);
       
-      if (this.currentSessionId === sessionId) {
-        const newActiveSession = filteredSessions[0];
-        this.switchToSession(newActiveSession.id);
+      if (filteredSessions.length === 0) {
+        this.initializeDefaultSession();
+      } else {
+        this.sessionsSubject.next(filteredSessions);
+        
+        if (this.currentSessionId === sessionId) {
+          const newActiveSession = filteredSessions[0];
+          this.switchToSession(newActiveSession.id);
+        } else {
+          // Save remaining sessions
+          this.saveSessionsToStorage();
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting session from IndexedDB:', error);
+      // Continue with in-memory deletion even if IndexedDB fails
+      if (filteredSessions.length === 0) {
+        this.initializeDefaultSession();
+      } else {
+        this.sessionsSubject.next(filteredSessions);
+        
+        if (this.currentSessionId === sessionId) {
+          const newActiveSession = filteredSessions[0];
+          this.switchToSession(newActiveSession.id);
+        }
       }
     }
   }
@@ -210,5 +280,56 @@ export class ChatService {
     
     this.sessionsSubject.next(updatedSessions);
     this.messagesSubject.next([]);
+    
+    // Save to IndexedDB
+    this.saveSessionsToStorage();
+  }
+
+  // Utility methods for data management
+  async exportChatData(): Promise<any> {
+    try {
+      return await this.indexedDBService.exportData();
+    } catch (error) {
+      console.error('Error exporting chat data:', error);
+      throw error;
+    }
+  }
+
+  async importChatData(data: any): Promise<void> {
+    try {
+      await this.indexedDBService.importData(data);
+      // Reload the app state
+      await this.initializeApp();
+    } catch (error) {
+      console.error('Error importing chat data:', error);
+      throw error;
+    }
+  }
+
+  async clearAllData(): Promise<void> {
+    try {
+      await this.indexedDBService.clearAllData();
+      // Reset to default state
+      this.initializeDefaultSession();
+    } catch (error) {
+      console.error('Error clearing all data:', error);
+      throw error;
+    }
+  }
+
+  // Get current storage usage info
+  async getStorageInfo(): Promise<{ sessions: number, totalMessages: number }> {
+    try {
+      const sessions = this.sessionsSubject.value;
+      const totalMessages = sessions.reduce((total, session) => total + session.messages.length, 0);
+      
+      return {
+        sessions: sessions.length,
+        totalMessages
+      };
+    } catch (error) {
+      console.error('Error getting storage info:', error);
+      return { sessions: 0, totalMessages: 0 };
+    }
   }
 }

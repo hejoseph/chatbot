@@ -161,8 +161,8 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
     this.sidebarVisible = false;
   }
 
-  onSessionDeleted(sessionId: string): void {
-    this.chatService.deleteSession(sessionId);
+  async onSessionDeleted(sessionId: string): Promise<void> {
+    await this.chatService.deleteSession(sessionId);
   }
 
   onClearChat(): void {
