@@ -54,3 +54,4 @@ tmp_rovodev_*
 
 node_modules/
 .angular
+*.md

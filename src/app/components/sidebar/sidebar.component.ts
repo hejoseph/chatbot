@@ -313,8 +313,8 @@ import { ChatSession } from '../../models/message.model';
 
     @media (min-width: 769px) {
       .sidebar {
-        position: static;
-        left: 0;
+        position: fixed;
+        left: -280px;
       }
       
       .sidebar.visible {
