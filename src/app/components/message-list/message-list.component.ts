@@ -39,6 +39,13 @@ import { TypingIndicatorComponent } from '../typing-indicator/typing-indicator.c
     </div>
   `,
   styles: [`
+    :host {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
     .message-list {
       flex: 1;
       overflow-y: auto;
