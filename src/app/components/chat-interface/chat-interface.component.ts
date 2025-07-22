@@ -1,14 +1,14 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { ChatService } from '../../services/chat.service';
 import { Message, ChatSession } from '../../models/message.model';
-import { ChatHeaderComponent } from '../chat-header/chat-header.component';
 import { MessageListComponent } from '../message-list/message-list.component';
 import { MessageInputComponent } from '../message-input/message-input.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
+import { SettingsModalComponent, LLMApiKey } from '../settings-modal/settings-modal.component';
+import { ChatHeaderComponent } from '../chat-header/chat-header.component';
 
 @Component({
   selector: 'app-chat-interface',
@@ -36,9 +36,12 @@ import { SettingsModalComponent } from '../settings-modal/settings-modal.compone
       
       <div class="main-chat" [class.sidebar-open]="sidebarVisible">
         <app-chat-header 
+          #chatHeader
           [currentSession]="currentSession"
           (menuToggle)="toggleSidebar()"
-          (clearChat)="onClearChat()">
+          (clearChat)="onClearChat()"
+          (llmSelected)="onLLMSelected($event)"
+          (openSettings)="openSettingsModal()">
         </app-chat-header>
         
         <app-message-list 
@@ -125,6 +128,8 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
   sidebarVisible = false;
   settingsModalVisible = false;
   
+  @ViewChild('chatHeader') chatHeader!: ChatHeaderComponent;
+  
   private destroy$ = new Subject<void>();
 
   constructor(private chatService: ChatService) {}
@@ -148,6 +153,9 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
         this.sessions = sessions;
         this.currentSession = sessions.find(s => s.isActive) || null;
       });
+
+    // Load and set the active LLM on startup
+    this.loadActiveLLM();
   }
 
   ngOnDestroy(): void {
@@ -191,14 +199,34 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
     this.settingsModalVisible = false;
   }
 
-  onSettingsSaved(apiKeys: any[]): void {
-    // Handle the saved API keys - you can integrate this with your chat service
+  onSettingsSaved(apiKeys: LLMApiKey[]): void {
     console.log('API keys saved:', apiKeys);
-    // You might want to update the chat service with the active API key
+    
+    // Update the chat service with the active API key
     const activeKey = apiKeys.find(key => key.isActive);
     if (activeKey) {
-      // Update your chat service with the active API key
-      console.log('Active API key:', activeKey);
+      this.chatService.setSelectedLLM(activeKey);
+      console.log('Active API key set:', activeKey);
+    }
+    
+    // Refresh the LLM selector in the header
+    this.chatHeader?.refreshLLMSelector();
+  }
+
+  onLLMSelected(apiKey: LLMApiKey): void {
+    this.chatService.setSelectedLLM(apiKey);
+    console.log('LLM selected:', apiKey.name, apiKey.provider);
+  }
+
+  private loadActiveLLM(): void {
+    // Load the active LLM from localStorage on app startup
+    const saved = localStorage.getItem('llm-api-keys');
+    if (saved) {
+      const apiKeys: LLMApiKey[] = JSON.parse(saved);
+      const activeKey = apiKeys.find(key => key.isActive);
+      if (activeKey) {
+        this.chatService.setSelectedLLM(activeKey);
+      }
     }
   }
 }

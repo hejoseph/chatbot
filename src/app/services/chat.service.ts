@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, delay, of } from 'rxjs';
 import { Message, ChatSession } from '../models/message.model';
 import { IndexedDBService } from './indexeddb.service';
+import { LLMApiKey } from '../components/settings-modal/settings-modal.component';
 
 @Injectable({
   providedIn: 'root'
@@ -17,6 +18,7 @@ export class ChatService {
 
   private currentSessionId = 'default';
   private messageIdCounter = 1;
+  private selectedLLM: LLMApiKey | null = null;
 
   constructor(private indexedDBService: IndexedDBService) {
     this.initializeApp();
@@ -96,28 +98,185 @@ export class ChatService {
     // Simulate AI typing
     this.typingSubject.next(true);
 
-    // Simulate AI response
-    this.generateAIResponse(content).subscribe(response => {
-      this.typingSubject.next(false);
-      
-      const aiMessage: Message = {
-        id: (++this.messageIdCounter).toString(),
-        content: response,
-        timestamp: new Date(),
-        isUser: false,
-        status: 'read'
-      };
+    // Generate AI response using selected LLM
+    this.generateAIResponse(content).subscribe({
+      next: (response) => {
+        this.typingSubject.next(false);
+        
+        const aiMessage: Message = {
+          id: (++this.messageIdCounter).toString(),
+          content: response,
+          timestamp: new Date(),
+          isUser: false,
+          status: 'read'
+        };
 
-      const updatedMessages = this.messagesSubject.value;
-      this.messagesSubject.next([...updatedMessages, aiMessage]);
-      
-      // Update session
-      this.updateCurrentSession();
+        const updatedMessages = this.messagesSubject.value;
+        this.messagesSubject.next([...updatedMessages, aiMessage]);
+        
+        // Update session
+        this.updateCurrentSession();
+      },
+      error: (error) => {
+        this.typingSubject.next(false);
+        
+        const errorMessage: Message = {
+          id: (++this.messageIdCounter).toString(),
+          content: `Sorry, I encountered an error: ${error.message || 'Unable to generate response'}. Please check your API key configuration.`,
+          timestamp: new Date(),
+          isUser: false,
+          status: 'read'
+        };
+
+        const updatedMessages = this.messagesSubject.value;
+        this.messagesSubject.next([...updatedMessages, errorMessage]);
+        
+        // Update session
+        this.updateCurrentSession();
+      }
     });
   }
 
   private generateAIResponse(userMessage: string): Observable<string> {
-    // Simulate AI processing time
+    if (!this.selectedLLM) {
+      return of("Please select an LLM from the dropdown in the header before sending messages.").pipe(delay(500));
+    }
+
+    if (this.selectedLLM.provider === 'Google Gemini Flash 2.5' || this.selectedLLM.provider === 'Google Gemini') {
+      return this.callGoogleGeminiAPI(userMessage);
+    } else if (this.selectedLLM.provider === 'OpenAI') {
+      return this.callOpenAIAPI(userMessage);
+    } else if (this.selectedLLM.provider === 'Anthropic') {
+      return this.callAnthropicAPI(userMessage);
+    } else {
+      // Fallback for other providers
+      return this.simulateAIResponse(userMessage);
+    }
+  }
+
+  private callGoogleGeminiAPI(userMessage: string): Observable<string> {
+    return new Observable(observer => {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.selectedLLM!.apiKey}`;
+      
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: userMessage
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          }
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+          const responseText = data.candidates[0].content.parts[0].text;
+          observer.next(responseText);
+        } else {
+          throw new Error('Invalid response format from Google Gemini API');
+        }
+        observer.complete();
+      })
+      .catch(error => {
+        console.error('Google Gemini API error:', error);
+        observer.error(error);
+      });
+    });
+  }
+
+  private callOpenAIAPI(userMessage: string): Observable<string> {
+    return new Observable(observer => {
+      fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.selectedLLM!.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'user', content: userMessage }
+          ],
+          max_tokens: 1024,
+          temperature: 0.7
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`OpenAI API request failed: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.choices && data.choices[0] && data.choices[0].message) {
+          observer.next(data.choices[0].message.content);
+        } else {
+          throw new Error('Invalid response format from OpenAI API');
+        }
+        observer.complete();
+      })
+      .catch(error => {
+        console.error('OpenAI API error:', error);
+        observer.error(error);
+      });
+    });
+  }
+
+  private callAnthropicAPI(userMessage: string): Observable<string> {
+    return new Observable(observer => {
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.selectedLLM!.apiKey,
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: userMessage
+          }]
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Anthropic API request failed: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.content && data.content[0] && data.content[0].text) {
+          observer.next(data.content[0].text);
+        } else {
+          throw new Error('Invalid response format from Anthropic API');
+        }
+        observer.complete();
+      })
+      .catch(error => {
+        console.error('Anthropic API error:', error);
+        observer.error(error);
+      });
+    });
+  }
+
+  private simulateAIResponse(userMessage: string): Observable<string> {
     const responses = [
       "That's an interesting question! Let me think about that for a moment.",
       "I understand what you're asking. Here's what I think...",
@@ -134,7 +293,7 @@ export class ChatService {
     const randomResponse = responses[Math.floor(Math.random() * responses.length)];
     const processingTime = Math.random() * 2000 + 1000; // 1-3 seconds
 
-    return of(randomResponse).pipe(delay(processingTime));
+    return of(`[Simulated Response] ${randomResponse}`).pipe(delay(processingTime));
   }
 
   private updateMessageStatus(messageId: string, status: Message['status']): void {
@@ -331,5 +490,15 @@ export class ChatService {
       console.error('Error getting storage info:', error);
       return { sessions: 0, totalMessages: 0 };
     }
+  }
+
+  // LLM management methods
+  setSelectedLLM(apiKey: LLMApiKey): void {
+    this.selectedLLM = apiKey;
+    console.log('Selected LLM:', apiKey.name, apiKey.provider);
+  }
+
+  getSelectedLLM(): LLMApiKey | null {
+    return this.selectedLLM;
   }
 }

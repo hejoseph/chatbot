@@ -1,11 +1,13 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ChatSession } from '../../models/message.model';
+import { LLMSelectorComponent } from '../llm-selector/llm-selector.component';
+import { LLMApiKey } from '../settings-modal/settings-modal.component';
 
 @Component({
   selector: 'app-chat-header',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LLMSelectorComponent],
   template: `
     <header class="chat-header">
       <div class="header-left">
@@ -22,6 +24,15 @@ import { ChatSession } from '../../models/message.model';
           <h1 class="session-title">{{ currentSession?.title || 'Chat' }}</h1>
           <span class="session-subtitle">AI Assistant</span>
         </div>
+      </div>
+      
+      <div class="header-center">
+        <app-llm-selector
+          #llmSelector
+          [disabled]="false"
+          (llmSelected)="onLLMSelected($event)"
+          (openSettings)="openSettings.emit()">
+        </app-llm-selector>
       </div>
       
       <div class="header-right">
@@ -58,6 +69,14 @@ import { ChatSession } from '../../models/message.model';
       gap: var(--spacing-md);
       flex: 1;
       min-width: 0;
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      margin: 0 var(--spacing-md);
     }
 
     .header-right {
@@ -145,4 +164,15 @@ export class ChatHeaderComponent {
   @Input() currentSession: ChatSession | null = null;
   @Output() menuToggle = new EventEmitter<void>();
   @Output() clearChat = new EventEmitter<void>();
+  @Output() llmSelected = new EventEmitter<LLMApiKey>();
+  @Output() openSettings = new EventEmitter<void>();
+  @ViewChild('llmSelector') llmSelector!: LLMSelectorComponent;
+
+  onLLMSelected(apiKey: LLMApiKey) {
+    this.llmSelected.emit(apiKey);
+  }
+
+  refreshLLMSelector() {
+    this.llmSelector?.refreshApiKeys();
+  }
 }
