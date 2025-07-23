@@ -1,4 +1,19 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+
+// Import Prism and its components directly
+import 'prismjs';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-scss';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-markdown';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-csharp';
+import 'prismjs/components/prism-sql';
 
 declare var Prism: any;
 
@@ -6,63 +21,21 @@ declare var Prism: any;
   providedIn: 'root'
 })
 export class PrismService {
-  private prismLoaded = false;
+  private isBrowser: boolean;
 
-  async loadPrism(): Promise<any> {
-    if (this.prismLoaded) {
-      return Promise.resolve(typeof Prism !== 'undefined' ? Prism : null);
-    }
+  constructor(@Inject(PLATFORM_ID) private platformId: object) {
+    this.isBrowser = isPlatformBrowser(this.platformId);
+  }
 
-    try {
-      // Load Prism core
-      await import('prismjs');
-      
-      // Load language components without type checking
-      await this.loadLanguageComponents();
-
-      this.prismLoaded = true;
-      return typeof Prism !== 'undefined' ? Prism : null;
-    } catch (error) {
-      console.error('Failed to load Prism:', error);
-      return null;
+  highlightAll() {
+    if (this.isBrowser) {
+      Prism.highlightAll();
     }
   }
 
-  private async loadLanguageComponents(): Promise<void> {
-    const languages = [
-      'typescript', 'javascript', 'css', 'scss', 'json', 
-      'markdown', 'bash', 'python', 'java', 'csharp', 'sql'
-    ];
-
-    // Load languages sequentially to avoid conflicts
-    for (const lang of languages) {
-      try {
-        await import(`prismjs/components/prism-${lang}.js`);
-      } catch (error) {
-        console.warn(`Failed to load Prism language: ${lang}`, error);
-      }
-    }
-  }
-
-  async highlightElement(element: HTMLElement): Promise<void> {
-    const prism = await this.loadPrism();
-    if (prism && prism.highlightElement) {
-      try {
-        prism.highlightElement(element);
-      } catch (error) {
-        console.warn('Failed to highlight element:', error);
-      }
-    }
-  }
-
-  async highlightAll(container?: HTMLElement): Promise<void> {
-    const prism = await this.loadPrism();
-    if (prism && prism.highlightAllUnder) {
-      try {
-        prism.highlightAllUnder(container || document);
-      } catch (error) {
-        console.warn('Failed to highlight all elements:', error);
-      }
+  highlightElement(element: HTMLElement) {
+    if (this.isBrowser) {
+      Prism.highlightElement(element);
     }
   }
 }

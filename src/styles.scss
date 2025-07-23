@@ -198,29 +198,34 @@ input, textarea {
   transition: all 0.3s ease-in-out;
 }
 
-/* Import Prism.js theme for syntax highlighting */
-@import 'prismjs/themes/prism.css';
+
+
+/* Import a modern Prism theme */
+@import 'prismjs/themes/prism-okaidia.css';
 
 /* Custom Prism theme adjustments */
 :root {
-  --prism-background: #f8f9fa;
-  --prism-text: #24292e;
-  --prism-comment: #6a737d;
-  --prism-keyword: #d73a49;
-  --prism-string: #032f62;
-  --prism-function: #6f42c1;
-  --prism-number: #005cc5;
-  --prism-operator: #d73a49;
+  --prism-background: #282c34;
+  --prism-text: #abb2bf;
+  --prism-comment: #5c6370;
+  --prism-keyword: #c678dd;
+  --prism-string: #98c379;
+  --prism-function: #61afef;
+  --prism-number: #d19a66;
+  --prism-operator: #56b6c2;
+  --prism-punctuation: #abb2bf;
+  --prism-tag: #e06c75;
+  --prism-class-name: #e5c07b;
 }
 
 /* Enhanced Prism styling */
 code[class*="language-"],
 pre[class*="language-"] {
-  color: var(--prism-text) !important;
-  background: var(--prism-background) !important;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace !important;
-  font-size: 0.9em !important;
-  line-height: 1.5 !important;
+  color: var(--prism-text);
+  background: none;
+  font-family: 'Fira Code', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
   direction: ltr;
   text-align: left;
   white-space: pre;
@@ -228,14 +233,23 @@ pre[class*="language-"] {
   word-break: normal;
   tab-size: 4;
   hyphens: none;
+  text-shadow: none; /* Remove text shadow */
 }
 
 pre[class*="language-"] {
-  padding: 1em !important;
-  margin: 0.8em 0 !important;
+  padding: 1.2em;
+  margin: 1em 0;
   overflow: auto;
-  border-radius: 8px !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px;
+  background: var(--prism-background);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Inline code */
+:not(pre) > code[class*="language-"] {
+  padding: .2em .4em;
+  border-radius: 6px;
+  white-space: normal;
 }
 
 /* Token colors */
@@ -243,12 +257,12 @@ pre[class*="language-"] {
 .token.prolog,
 .token.doctype,
 .token.cdata {
-  color: var(--prism-comment) !important;
+  color: var(--prism-comment);
   font-style: italic;
 }
 
 .token.punctuation {
-  color: var(--prism-text) !important;
+  color: var(--prism-punctuation);
 }
 
 .token.property,
@@ -258,7 +272,7 @@ pre[class*="language-"] {
 .token.constant,
 .token.symbol,
 .token.deleted {
-  color: var(--prism-number) !important;
+  color: var(--prism-number);
 }
 
 .token.selector,
@@ -267,7 +281,7 @@ pre[class*="language-"] {
 .token.char,
 .token.builtin,
 .token.inserted {
-  color: var(--prism-string) !important;
+  color: var(--prism-string);
 }
 
 .token.operator,
@@ -275,40 +289,51 @@ pre[class*="language-"] {
 .token.url,
 .language-css .token.string,
 .style .token.string {
-  color: var(--prism-operator) !important;
+  color: var(--prism-operator);
 }
 
 .token.atrule,
 .token.attr-value,
 .token.keyword {
-  color: var(--prism-keyword) !important;
-  font-weight: 600;
+  color: var(--prism-keyword);
 }
 
 .token.function,
 .token.class-name {
-  color: var(--prism-function) !important;
-  font-weight: 600;
+  color: var(--prism-function);
 }
 
 .token.regex,
 .token.important,
 .token.variable {
-  color: var(--prism-keyword) !important;
+  color: var(--prism-keyword);
+}
+
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
+}
+
+.token.entity {
+  cursor: help;
 }
 
 /* Dark theme for AI message bubbles */
 .ai-bubble {
-  --prism-background: rgba(255, 255, 255, 0.05);
-  --prism-text: #e1e4e8;
-  --prism-comment: #8b949e;
-  --prism-keyword: #ff7b72;
-  --prism-string: #a5d6ff;
-  --prism-function: #d2a8ff;
-  --prism-number: #79c0ff;
-  --prism-operator: #ff7b72;
+  --prism-background: rgba(255, 255, 255, 0.08);
+  --prism-text: #abb2bf;
+  --prism-comment: #7f848e;
+  --prism-keyword: #e06c75;
+  --prism-string: #98c379;
+  --prism-function: #61afef;
+  --prism-number: #d19a66;
+  --prism-operator: #56b6c2;
 }
 
 .ai-bubble pre[class*="language-"] {
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.15);
 }

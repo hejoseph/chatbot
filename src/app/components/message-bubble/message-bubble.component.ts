@@ -139,24 +139,6 @@ import { PrismService } from '../../services/prism.service';
         font-weight: 500;
       }
       
-      pre {
-        background: rgba(0, 0, 0, 0.05);
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        padding: 1em;
-        border-radius: 8px;
-        overflow-x: auto;
-        margin: 0.8em 0;
-        position: relative;
-      }
-      
-      pre code {
-        background: none;
-        padding: 0;
-        color: inherit;
-        font-weight: normal;
-        border-radius: 0;
-      }
-      
       ul, ol {
         margin: 0.5em 0;
         padding-left: 1.5em;
@@ -212,16 +194,6 @@ import { PrismService } from '../../services/prism.service';
 
     /* Dark theme adjustments for markdown */
     .ai-bubble .message-content ::ng-deep {
-      code {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ff7b72;
-      }
-      
-      pre {
-        background: rgba(255, 255, 255, 0.05);
-        border-color: rgba(255, 255, 255, 0.1);
-      }
-      
       blockquote {
         background: rgba(255, 255, 255, 0.02);
       }
@@ -313,21 +285,19 @@ export class MessageBubbleComponent implements AfterViewInit {
   constructor(private prismService: PrismService) {}
 
   ngAfterViewInit(): void {
-    // Highlight syntax for any existing code blocks
     this.highlightCode();
   }
 
   onMarkdownReady(): void {
-    // Highlight syntax after markdown is rendered
-    setTimeout(() => this.highlightCode(), 0);
+    this.highlightCode();
   }
 
-  private async highlightCode(): Promise<void> {
+  private highlightCode(): void {
     if (this.messageContent && !this.message.isUser) {
       const codeBlocks = this.messageContent.nativeElement.querySelectorAll('pre code');
-      for (const block of codeBlocks) {
-        await this.prismService.highlightElement(block as HTMLElement);
-      }
+      codeBlocks.forEach((block: HTMLElement) => {
+        this.prismService.highlightElement(block);
+      });
     }
   }
 
