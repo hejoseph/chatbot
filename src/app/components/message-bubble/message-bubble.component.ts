@@ -267,8 +267,9 @@ import { PrismService } from '../../services/prism.service';
     }
 
     /* Copy button for code blocks */
-    .message-content ::ng-deep pre {
+    .message-content ::ng-deep .code-block-wrapper {
       position: relative;
+      margin: 0.8em 0;
     }
 
     .message-content ::ng-deep .copy-button {
@@ -287,7 +288,7 @@ import { PrismService } from '../../services/prism.service';
       transition: opacity 0.2s ease-in-out, background-color 0.2s ease;
     }
 
-    .message-content ::ng-deep pre:hover .copy-button {
+    .message-content ::ng-deep .code-block-wrapper:hover .copy-button {
       opacity: 1;
     }
 
@@ -339,12 +340,18 @@ export class MessageBubbleComponent implements AfterViewInit {
   }
 
   private addCopyButton(preElement: HTMLElement, codeElement: HTMLElement): void {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'code-block-wrapper';
+
+    preElement.parentNode?.insertBefore(wrapper, preElement);
+    wrapper.appendChild(preElement);
+
     const copyButton = document.createElement('button');
     copyButton.className = 'copy-button';
     copyButton.textContent = 'Copy';
     copyButton.addEventListener('click', () => this.copyToClipboard(codeElement, copyButton));
-    preElement.style.position = 'relative';
-    preElement.appendChild(copyButton);
+    
+    wrapper.appendChild(copyButton);
   }
 
   private copyToClipboard(codeElement: HTMLElement, button: HTMLButtonElement): void {
