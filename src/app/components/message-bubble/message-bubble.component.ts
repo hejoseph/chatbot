@@ -1,7 +1,8 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, AfterViewInit, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MarkdownModule } from 'ngx-markdown';
 import { Message } from '../../models/message.model';
+import { PrismService } from '../../services/prism.service';
 
 @Component({
   selector: 'app-message-bubble',
@@ -10,11 +11,11 @@ import { Message } from '../../models/message.model';
   template: `
     <div class="message-wrapper" [class.user-message]="message.isUser">
       <div class="message-bubble" [class.user-bubble]="message.isUser" [class.ai-bubble]="!message.isUser">
-        <div class="message-content">
+        <div class="message-content" #messageContent>
           @if (message.isUser) {
             {{ message.content }}
           } @else {
-            <markdown [data]="message.content"></markdown>
+            <markdown [data]="message.content" (ready)="onMarkdownReady()"></markdown>
           }
         </div>
         
@@ -305,8 +306,30 @@ import { Message } from '../../models/message.model';
     }
   `]
 })
-export class MessageBubbleComponent {
+export class MessageBubbleComponent implements AfterViewInit {
   @Input() message!: Message;
+  @ViewChild('messageContent') messageContent!: ElementRef;
+
+  constructor(private prismService: PrismService) {}
+
+  ngAfterViewInit(): void {
+    // Highlight syntax for any existing code blocks
+    this.highlightCode();
+  }
+
+  onMarkdownReady(): void {
+    // Highlight syntax after markdown is rendered
+    setTimeout(() => this.highlightCode(), 0);
+  }
+
+  private async highlightCode(): Promise<void> {
+    if (this.messageContent && !this.message.isUser) {
+      const codeBlocks = this.messageContent.nativeElement.querySelectorAll('pre code');
+      for (const block of codeBlocks) {
+        await this.prismService.highlightElement(block as HTMLElement);
+      }
+    }
+  }
 
   formatTime(timestamp: Date): string {
     return timestamp.toLocaleTimeString([], { 
