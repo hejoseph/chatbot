@@ -266,6 +266,39 @@ import { PrismService } from '../../services/prism.service';
       }
     }
 
+    /* Copy button for code blocks */
+    .message-content ::ng-deep pre {
+      position: relative;
+    }
+
+    .message-content ::ng-deep .copy-button {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background-color: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out, background-color 0.2s ease;
+    }
+
+    .message-content ::ng-deep pre:hover .copy-button {
+      opacity: 1;
+    }
+
+    .message-content ::ng-deep .copy-button:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .message-content ::ng-deep .copy-button:active {
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
     @media (max-width: 768px) {
       .message-bubble {
         max-width: 85%;
@@ -294,11 +327,40 @@ export class MessageBubbleComponent implements AfterViewInit {
 
   private highlightCode(): void {
     if (this.messageContent && !this.message.isUser) {
-      const codeBlocks = this.messageContent.nativeElement.querySelectorAll('pre code');
-      codeBlocks.forEach((block: HTMLElement) => {
-        this.prismService.highlightElement(block);
+      const codeBlocks = this.messageContent.nativeElement.querySelectorAll('pre');
+      codeBlocks.forEach((preElement: HTMLElement) => {
+        const codeElement = preElement.querySelector('code');
+        if (codeElement) {
+          this.prismService.highlightElement(codeElement);
+          this.addCopyButton(preElement, codeElement);
+        }
       });
     }
+  }
+
+  private addCopyButton(preElement: HTMLElement, codeElement: HTMLElement): void {
+    const copyButton = document.createElement('button');
+    copyButton.className = 'copy-button';
+    copyButton.textContent = 'Copy';
+    copyButton.addEventListener('click', () => this.copyToClipboard(codeElement, copyButton));
+    preElement.style.position = 'relative';
+    preElement.appendChild(copyButton);
+  }
+
+  private copyToClipboard(codeElement: HTMLElement, button: HTMLButtonElement): void {
+    const textToCopy = codeElement.innerText;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      button.textContent = 'Copied!';
+      setTimeout(() => {
+        button.textContent = 'Copy';
+      }, 2000);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      button.textContent = 'Error';
+      setTimeout(() => {
+        button.textContent = 'Copy';
+      }, 2000);
+    });
   }
 
   formatTime(timestamp: Date): string {
