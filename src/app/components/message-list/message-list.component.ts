@@ -67,9 +67,8 @@ import { ChatService } from '../../services/chat.service';
       display: flex;
       flex-direction: column;
       gap: var(--spacing-md);
-      max-width: 800px;
       margin: 0 auto;
-      width: 100%;
+      width: 90%;
     }
 
     .empty-state {

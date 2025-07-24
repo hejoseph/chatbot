@@ -87,7 +87,7 @@ import { PrismService } from '../../services/prism.service';
     }
 
     .message-bubble {
-      max-width: 70%;
+      max-width: 80%;
       min-width: 120px;
       padding: var(--spacing-md) var(--spacing-md);
       border-radius: var(--radius-lg);

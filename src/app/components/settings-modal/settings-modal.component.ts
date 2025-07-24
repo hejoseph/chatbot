@@ -196,6 +196,32 @@ export interface LLMApiKey {
       flex-direction: column;
       transform: scale(0.9);
       transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      border: 1px solid var(--separator);
+    }
+
+    /* Enhanced modal styling for dark mode */
+    @media (prefers-color-scheme: dark) {
+      .modal-content {
+        background: var(--background-secondary);
+        border: 1px solid var(--apple-gray-dark);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 
+                    0 0 0 1px rgba(255, 255, 255, 0.05);
+      }
+      
+      .modal-header {
+        background: var(--background-tertiary);
+        border-bottom: 1px solid var(--apple-gray-dark);
+      }
+      
+      .add-api-key-form {
+        background: var(--background-tertiary);
+        border: 1px solid var(--apple-gray-dark);
+      }
+      
+      .modal-footer {
+        background: var(--background-tertiary);
+        border-top: 1px solid var(--apple-gray-dark);
+      }
     }
 
     .modal-overlay.visible .modal-content {
