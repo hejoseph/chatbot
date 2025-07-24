@@ -11,13 +11,19 @@ import { PrismService } from '../../services/prism.service';
   template: `
     <div class="message-wrapper" [class.user-message]="message.isUser">
       <div class="message-bubble" [class.user-bubble]="message.isUser" [class.ai-bubble]="!message.isUser">
-        <button class="copy-message-button" (click)="copyMessageContent()" [attr.data-copied]="copied ? 'true' : 'false'">
-          @if (copied) {
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          } @else {
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        <div class="copy-options">
+          <button class="options-button" (click)="toggleCopyMenu()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+          </button>
+          @if (showCopyMenu) {
+            <div class="copy-menu">
+              <button (click)="copyAsText()">Copy Text</button>
+              @if (!message.isUser) {
+                <button (click)="copyAsMarkdown()">Copy Markdown</button>
+              }
+            </div>
           }
-        </button>
+        </div>
         <div class="message-content" #messageContent>
           @if (message.isUser) {
             {{ message.content }}
@@ -273,46 +279,66 @@ import { PrismService } from '../../services/prism.service';
       }
     }
 
-    .message-bubble:hover .copy-message-button {
+    .message-bubble:hover .copy-options {
       opacity: 1;
     }
 
-    .copy-message-button {
+    .copy-options {
       position: absolute;
       top: 10px;
       right: 10px;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+      z-index: 1;
+    }
+
+    .options-button {
       background-color: rgba(0, 0, 0, 0.1);
       color: var(--text-primary);
       border: 1px solid transparent;
       padding: 4px;
       border-radius: 6px;
       cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.2s ease-in-out, background-color 0.2s ease;
-      z-index: 1;
     }
 
-    .user-bubble .copy-message-button {
+    .user-bubble .options-button {
       color: white;
       background-color: rgba(255, 255, 255, 0.2);
     }
 
-    .copy-message-button:hover {
+    .options-button:hover {
       background-color: rgba(0, 0, 0, 0.2);
     }
-    
-    .user-bubble .copy-message-button:hover {
+
+    .user-bubble .options-button:hover {
       background-color: rgba(255, 255, 255, 0.3);
     }
 
-    .copy-message-button[data-copied='true'] {
-      opacity: 1;
-      background-color: var(--apple-green);
-      color: white;
+    .copy-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: var(--background-secondary);
+      border-radius: 6px;
+      box-shadow: var(--shadow-md);
+      padding: var(--spacing-xs);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
     }
 
-    .copy-message-button svg {
-      display: block;
+    .copy-menu button {
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      padding: var(--spacing-sm);
+      text-align: left;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .copy-menu button:hover {
+      background-color: var(--background-tertiary);
     }
 
     /* Copy button for code blocks */
@@ -364,7 +390,7 @@ import { PrismService } from '../../services/prism.service';
 export class MessageBubbleComponent implements AfterViewInit {
   @Input() message!: Message;
   @ViewChild('messageContent') messageContent!: ElementRef;
-  copied = false;
+  showCopyMenu = false;
 
   constructor(private prismService: PrismService) {}
 
@@ -376,15 +402,25 @@ export class MessageBubbleComponent implements AfterViewInit {
     this.highlightCode();
   }
 
-  copyMessageContent(): void {
-    const content = this.messageContent.nativeElement.innerText;
-    navigator.clipboard.writeText(content).then(() => {
-      this.copied = true;
-      setTimeout(() => {
-        this.copied = false;
-      }, 2000);
+  toggleCopyMenu(): void {
+    this.showCopyMenu = !this.showCopyMenu;
+  }
+
+  copyAsText(): void {
+    const text = this.messageContent.nativeElement.innerText;
+    this.copyToClipboard(text, 'Text');
+  }
+
+  copyAsMarkdown(): void {
+    this.copyToClipboard(this.message.content, 'Markdown');
+  }
+
+  private copyToClipboard(text: string, type: string): void {
+    navigator.clipboard.writeText(text).then(() => {
+      this.showCopyMenu = false;
+      // Optional: show a temporary success message
     }).catch(err => {
-      console.error('Failed to copy message: ', err);
+      console.error(`Failed to copy ${type}: `, err);
     });
   }
 
@@ -411,12 +447,12 @@ export class MessageBubbleComponent implements AfterViewInit {
     const copyButton = document.createElement('button');
     copyButton.className = 'copy-button';
     copyButton.textContent = 'Copy';
-    copyButton.addEventListener('click', () => this.copyToClipboard(codeElement, copyButton));
+    copyButton.addEventListener('click', () => this.copyCodeToClipboard(codeElement, copyButton));
     
     wrapper.appendChild(copyButton);
   }
 
-  private copyToClipboard(codeElement: HTMLElement, button: HTMLButtonElement): void {
+  private copyCodeToClipboard(codeElement: HTMLElement, button: HTMLButtonElement): void {
     const textToCopy = codeElement.innerText;
     navigator.clipboard.writeText(textToCopy).then(() => {
       button.textContent = 'Copied!';
