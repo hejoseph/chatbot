@@ -11,6 +11,13 @@ import { PrismService } from '../../services/prism.service';
   template: `
     <div class="message-wrapper" [class.user-message]="message.isUser">
       <div class="message-bubble" [class.user-bubble]="message.isUser" [class.ai-bubble]="!message.isUser">
+        <button class="copy-message-button" (click)="copyMessageContent()" [attr.data-copied]="copied ? 'true' : 'false'">
+          @if (copied) {
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          }
+        </button>
         <div class="message-content" #messageContent>
           @if (message.isUser) {
             {{ message.content }}
@@ -266,6 +273,48 @@ import { PrismService } from '../../services/prism.service';
       }
     }
 
+    .message-bubble:hover .copy-message-button {
+      opacity: 1;
+    }
+
+    .copy-message-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.1);
+      color: var(--text-primary);
+      border: 1px solid transparent;
+      padding: 4px;
+      border-radius: 6px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out, background-color 0.2s ease;
+      z-index: 1;
+    }
+
+    .user-bubble .copy-message-button {
+      color: white;
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .copy-message-button:hover {
+      background-color: rgba(0, 0, 0, 0.2);
+    }
+    
+    .user-bubble .copy-message-button:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .copy-message-button[data-copied='true'] {
+      opacity: 1;
+      background-color: var(--apple-green);
+      color: white;
+    }
+
+    .copy-message-button svg {
+      display: block;
+    }
+
     /* Copy button for code blocks */
     .message-content ::ng-deep .code-block-wrapper {
       position: relative;
@@ -315,6 +364,7 @@ import { PrismService } from '../../services/prism.service';
 export class MessageBubbleComponent implements AfterViewInit {
   @Input() message!: Message;
   @ViewChild('messageContent') messageContent!: ElementRef;
+  copied = false;
 
   constructor(private prismService: PrismService) {}
 
@@ -324,6 +374,18 @@ export class MessageBubbleComponent implements AfterViewInit {
 
   onMarkdownReady(): void {
     this.highlightCode();
+  }
+
+  copyMessageContent(): void {
+    const content = this.messageContent.nativeElement.innerText;
+    navigator.clipboard.writeText(content).then(() => {
+      this.copied = true;
+      setTimeout(() => {
+        this.copied = false;
+      }, 2000);
+    }).catch(err => {
+      console.error('Failed to copy message: ', err);
+    });
   }
 
   private highlightCode(): void {
