@@ -1,4 +1,4 @@
-import { Component, Input, AfterViewInit, ElementRef, ViewChild } from '@angular/core';
+import { Component, Input, Output, EventEmitter, AfterViewInit, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MarkdownModule } from 'ngx-markdown';
 import { Message } from '../../models/message.model';
@@ -21,6 +21,7 @@ import { PrismService } from '../../services/prism.service';
               @if (!message.isUser) {
                 <button (click)="copyAsMarkdown()">Copy Markdown</button>
               }
+              <button class="delete-button" (click)="deleteMessage.emit(message.id)">Delete</button>
             </div>
           }
         </div>
@@ -341,6 +342,10 @@ import { PrismService } from '../../services/prism.service';
       background-color: var(--background-tertiary);
     }
 
+    .delete-button {
+      color: var(--apple-red) !important;
+    }
+
     /* Copy button for code blocks */
     .message-content ::ng-deep .code-block-wrapper {
       position: relative;
@@ -389,6 +394,7 @@ import { PrismService } from '../../services/prism.service';
 })
 export class MessageBubbleComponent implements AfterViewInit {
   @Input() message!: Message;
+  @Output() deleteMessage = new EventEmitter<string>();
   @ViewChild('messageContent') messageContent!: ElementRef;
   showCopyMenu = false;
 

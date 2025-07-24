@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Message } from '../../models/message.model';
 import { MessageBubbleComponent } from '../message-bubble/message-bubble.component';
 import { TypingIndicatorComponent } from '../typing-indicator/typing-indicator.component';
+import { ChatService } from '../../services/chat.service';
 
 @Component({
   selector: 'app-message-list',
@@ -27,7 +28,7 @@ import { TypingIndicatorComponent } from '../typing-indicator/typing-indicator.c
             </div>
           } @else {
             @for (message of messages; track message.id) {
-              <app-message-bubble [message]="message"></app-message-bubble>
+              <app-message-bubble [message]="message" (deleteMessage)="onDeleteMessage($event)"></app-message-bubble>
             }
           }
           
@@ -142,6 +143,8 @@ export class MessageListComponent implements OnChanges, AfterViewChecked {
 
   private shouldScrollToBottom = false;
 
+  constructor(private chatService: ChatService) {}
+
   ngOnChanges(): void {
     this.shouldScrollToBottom = true;
   }
@@ -151,6 +154,10 @@ export class MessageListComponent implements OnChanges, AfterViewChecked {
       this.scrollToBottom();
       this.shouldScrollToBottom = false;
     }
+  }
+
+  onDeleteMessage(messageId: string): void {
+    this.chatService.deleteMessage(messageId);
   }
 
   private scrollToBottom(): void {

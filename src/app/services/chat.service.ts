@@ -137,6 +137,13 @@ export class ChatService {
     });
   }
 
+  deleteMessage(messageId: string): void {
+    const currentMessages = this.messagesSubject.value;
+    const updatedMessages = currentMessages.filter(m => m.id !== messageId);
+    this.messagesSubject.next(updatedMessages);
+    this.updateCurrentSession();
+  }
+
   private generateAIResponse(userMessage: string): Observable<string> {
     if (!this.selectedLLM) {
       return of("Please select an LLM from the dropdown in the header before sending messages.").pipe(delay(500));
