@@ -55,3 +55,6 @@ tmp_rovodev_*
 node_modules/
 .angular
 *.md
+
+*_commit.bat
+*_commit.txt

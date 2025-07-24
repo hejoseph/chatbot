@@ -9,10 +9,10 @@ import { PrismService } from '../../services/prism.service';
   standalone: true,
   imports: [CommonModule, MarkdownModule],
   template: `
-    <div class="message-wrapper" [class.user-message]="message.isUser">
+    <div class="message-wrapper" [class.user-message]="message.isUser" (click)="onBubbleClick()">
       <div class="message-bubble" [class.user-bubble]="message.isUser" [class.ai-bubble]="!message.isUser">
         <div class="copy-options">
-          <button class="options-button" (click)="toggleCopyMenu()">
+          <button class="options-button" (click)="toggleCopyMenu($event)">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
           </button>
           @if (showCopyMenu) {
@@ -408,7 +408,14 @@ export class MessageBubbleComponent implements AfterViewInit {
     this.highlightCode();
   }
 
-  toggleCopyMenu(): void {
+  onBubbleClick(): void {
+    if (this.showCopyMenu) {
+      this.showCopyMenu = false;
+    }
+  }
+
+  toggleCopyMenu(event: MouseEvent): void {
+    event.stopPropagation();
     this.showCopyMenu = !this.showCopyMenu;
   }
 
@@ -453,7 +460,10 @@ export class MessageBubbleComponent implements AfterViewInit {
     const copyButton = document.createElement('button');
     copyButton.className = 'copy-button';
     copyButton.textContent = 'Copy';
-    copyButton.addEventListener('click', () => this.copyCodeToClipboard(codeElement, copyButton));
+    copyButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.copyCodeToClipboard(codeElement, copyButton);
+    });
     
     wrapper.appendChild(copyButton);
   }
