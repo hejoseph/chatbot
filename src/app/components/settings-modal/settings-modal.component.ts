@@ -7,6 +7,7 @@ export interface LLMApiKey {
   name: string;
   provider: string;
   apiKey: string;
+  model?: string; // For providers that support multiple models
   isActive: boolean;
   lastTested?: Date;
   testStatus?: 'success' | 'error' | 'untested';
@@ -48,6 +49,9 @@ export interface LLMApiKey {
                       <div class="api-key-header">
                         <span class="api-key-name">{{ apiKey.name }}</span>
                         <span class="api-key-provider">{{ apiKey.provider }}</span>
+                        @if (apiKey.model && isGoogleGeminiProvider(apiKey.provider)) {
+                          <span class="api-key-model">{{ getModelDisplayName(apiKey.model) }}</span>
+                        }
                       </div>
                       <div class="api-key-value">
                         <input 
@@ -124,17 +128,30 @@ export interface LLMApiKey {
                   class="form-input">
                 <select 
                   [(ngModel)]="newApiKey.provider"
-                  class="form-select">
+                  class="form-select"
+                  (change)="onProviderChange()">
                   <option value="">Select Provider</option>
                   <option value="OpenAI">OpenAI</option>
                   <option value="Anthropic">Anthropic</option>
                   <option value="Google Gemini">Google Gemini</option>
-                  <option value="Google Gemini Flash 2.5">Google Gemini Flash 2.5</option>
                   <option value="Cohere">Cohere</option>
                   <option value="Hugging Face">Hugging Face</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
+              @if (isGoogleGeminiProvider(newApiKey.provider)) {
+                <div class="form-row">
+                  <select 
+                    [(ngModel)]="newApiKey.model"
+                    class="form-select full-width">
+                    <option value="">Select Model</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Experimental)</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                  </select>
+                </div>
+              }
               <div class="form-row">
                 <input 
                   type="password" 
@@ -338,6 +355,15 @@ export interface LLMApiKey {
       border-radius: 4px;
     }
 
+    .api-key-model {
+      font-size: var(--font-size-footnote);
+      color: var(--apple-blue);
+      background: rgba(0, 122, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
     .api-key-input {
       width: 100%;
       padding: var(--spacing-xs) var(--spacing-sm);
@@ -450,6 +476,7 @@ export interface LLMApiKey {
       padding: var(--spacing-lg);
       background: var(--background-secondary);
       border-radius: var(--radius-md);
+      overflow: hidden; /* Ensure content doesn't overflow */
     }
 
     .form-row {
@@ -468,8 +495,10 @@ export interface LLMApiKey {
       font-size: var(--font-size-subhead);
     }
 
-    .form-input.full-width {
+    .form-input.full-width, .form-select.full-width {
       width: 100%;
+      flex: none; /* Override flex: 1 for full-width elements */
+      box-sizing: border-box; /* Ensure padding is included in width */
     }
 
     .form-input:focus, .form-select:focus {
@@ -555,7 +584,8 @@ export class SettingsModalComponent implements OnInit {
   newApiKey = {
     name: '',
     provider: '',
-    apiKey: ''
+    apiKey: '',
+    model: ''
   };
 
   ngOnInit() {
@@ -580,17 +610,40 @@ export class SettingsModalComponent implements OnInit {
         name: this.newApiKey.name,
         provider: this.newApiKey.provider,
         apiKey: this.newApiKey.apiKey,
+        model: this.newApiKey.model || undefined,
         isActive: this.apiKeys.length === 0, // First key is active by default
         testStatus: 'untested'
       };
 
       this.apiKeys.push(newKey);
-      this.newApiKey = { name: '', provider: '', apiKey: '' };
+      this.newApiKey = { name: '', provider: '', apiKey: '', model: '' };
     }
   }
 
   canAddApiKey(): boolean {
-    return !!(this.newApiKey.name && this.newApiKey.provider && this.newApiKey.apiKey);
+    const hasBasicFields = !!(this.newApiKey.name && this.newApiKey.provider && this.newApiKey.apiKey);
+    const hasModelIfRequired = !this.isGoogleGeminiProvider(this.newApiKey.provider) || !!this.newApiKey.model;
+    return hasBasicFields && hasModelIfRequired;
+  }
+
+  isGoogleGeminiProvider(provider: string): boolean {
+    return provider === 'Google Gemini';
+  }
+
+  onProviderChange(): void {
+    if (!this.isGoogleGeminiProvider(this.newApiKey.provider)) {
+      this.newApiKey.model = '';
+    }
+  }
+
+  getModelDisplayName(model: string): string {
+    const modelNames: { [key: string]: string } = {
+      'gemini-2.5-flash': 'Gemini 2.5 Flash',
+      'gemini-2.0-flash-exp': 'Gemini 2.0 Flash (Exp)',
+      'gemini-1.5-pro': 'Gemini 1.5 Pro',
+      'gemini-1.5-flash': 'Gemini 1.5 Flash'
+    };
+    return modelNames[model] || model;
   }
 
   updateApiKey(id: string, field: string, event: any) {
@@ -646,8 +699,8 @@ export class SettingsModalComponent implements OnInit {
 
   private async performApiTest(apiKey: LLMApiKey): Promise<boolean> {
     const testPromise = new Promise<boolean>((resolve) => {
-      if (apiKey.provider === 'Google Gemini Flash 2.5' || apiKey.provider === 'Google Gemini') {
-        this.testGoogleGeminiApi(apiKey.apiKey).then(resolve).catch(() => resolve(false));
+      if (apiKey.provider === 'Google Gemini') {
+        this.testGoogleGeminiApi(apiKey.apiKey, apiKey.model).then(resolve).catch(() => resolve(false));
       } else if (apiKey.provider === 'OpenAI') {
         this.testOpenAIApi(apiKey.apiKey).then(resolve).catch(() => resolve(false));
       } else if (apiKey.provider === 'Anthropic') {
@@ -661,9 +714,10 @@ export class SettingsModalComponent implements OnInit {
     return testPromise;
   }
 
-  private async testGoogleGeminiApi(apiKey: string): Promise<boolean> {
+  private async testGoogleGeminiApi(apiKey: string, model?: string): Promise<boolean> {
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+      const modelToTest = model || 'gemini-2.5-flash';
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToTest}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

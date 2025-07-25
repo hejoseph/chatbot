@@ -149,7 +149,7 @@ export class ChatService {
       return of("Please select an LLM from the dropdown in the header before sending messages.").pipe(delay(500));
     }
 
-    if (this.selectedLLM.provider === 'Google Gemini Flash 2.5' || this.selectedLLM.provider === 'Google Gemini') {
+    if (this.selectedLLM.provider === 'Google Gemini') {
       return this.callGoogleGeminiAPI(userMessage);
     } else if (this.selectedLLM.provider === 'OpenAI') {
       return this.callOpenAIAPI(userMessage);
@@ -163,7 +163,9 @@ export class ChatService {
 
   private callGoogleGeminiAPI(userMessage: string): Observable<string> {
     return new Observable(observer => {
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.selectedLLM!.apiKey}`;
+      // Use the selected model or default to gemini-2.5-flash
+      const model = this.selectedLLM!.model || 'gemini-2.5-flash';
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.selectedLLM!.apiKey}`;
       
       // Build conversation history for context
       const conversationHistory = this.buildConversationHistory(userMessage);
