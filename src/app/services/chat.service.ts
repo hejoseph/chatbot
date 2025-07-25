@@ -165,17 +165,16 @@ export class ChatService {
     return new Observable(observer => {
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.selectedLLM!.apiKey}`;
       
+      // Build conversation history for context
+      const conversationHistory = this.buildConversationHistory(userMessage);
+      
       fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: userMessage
-            }]
-          }],
+          contents: conversationHistory,
           generationConfig: {
             temperature: 0.7,
             topK: 40,
@@ -301,6 +300,36 @@ export class ChatService {
     const processingTime = Math.random() * 2000 + 1000; // 1-3 seconds
 
     return of(`[Simulated Response] ${randomResponse}`).pipe(delay(processingTime));
+  }
+
+  private buildConversationHistory(currentUserMessage: string): any[] {
+    const currentMessages = this.messagesSubject.value;
+    const conversationHistory: any[] = [];
+    
+    // Add previous messages to conversation history (excluding the current user message)
+    for (const message of currentMessages) {
+      // Skip typing indicators and messages with errors
+      if (message.isTyping || message.status === 'error') {
+        continue;
+      }
+      
+      conversationHistory.push({
+        role: message.isUser ? 'user' : 'model',
+        parts: [{
+          text: message.content
+        }]
+      });
+    }
+    
+    // Add the current user message
+    conversationHistory.push({
+      role: 'user',
+      parts: [{
+        text: currentUserMessage
+      }]
+    });
+    
+    return conversationHistory;
   }
 
   private updateMessageStatus(messageId: string, status: Message['status']): void {
