@@ -61,7 +61,12 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
                 (click)="selectApiKey(apiKey)">
                 <div class="api-key-info">
                   <span class="api-key-name">{{ apiKey.name }}</span>
-                  <span class="api-key-provider">{{ apiKey.provider }}</span>
+                  <div class="api-key-provider-model">
+                    <span class="api-key-provider">{{ apiKey.provider }}</span>
+                    @if (apiKey.model && isGoogleGeminiProvider(apiKey.provider)) {
+                      <span class="api-key-model">{{ getModelDisplayName(apiKey.model) }}</span>
+                    }
+                  </div>
                 </div>
                 <div class="api-key-status">
                   @if (apiKey.testStatus === 'success') {
@@ -252,7 +257,7 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
     }
 
     .dropdown-item.active {
-      background: var(--apple-blue);
+      background: #244e7b;
       color: white;
     }
 
@@ -283,6 +288,22 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .api-key-provider-model {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+    }
+
+    .api-key-model {
+      font-size: var(--font-size-caption);
+      color: var(--apple-blue);
+      background: rgba(0, 122, 255, 0.1);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 500;
+      white-space: nowrap;
     }
 
     .api-key-status {
