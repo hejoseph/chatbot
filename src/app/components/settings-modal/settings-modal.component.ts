@@ -134,6 +134,7 @@ export interface LLMApiKey {
                   <option value="OpenAI">OpenAI</option>
                   <option value="Anthropic">Anthropic</option>
                   <option value="Google Gemini">Google Gemini</option>
+                  <option value="Puter.com">Puter.com</option>
                   <option value="Cohere">Cohere</option>
                   <option value="Hugging Face">Hugging Face</option>
                   <option value="Other">Other</option>
@@ -625,7 +626,8 @@ export class SettingsModalComponent implements OnInit {
   }
 
   canAddApiKey(): boolean {
-    const hasBasicFields = !!(this.newApiKey.name && this.newApiKey.provider && this.newApiKey.apiKey);
+    const isPuter = this.newApiKey.provider === 'Puter.com';
+    const hasBasicFields = !!(this.newApiKey.name && this.newApiKey.provider && (this.newApiKey.apiKey || isPuter));
     const hasModelIfRequired = !this.isGoogleGeminiProvider(this.newApiKey.provider) || !!this.newApiKey.model;
     return hasBasicFields && hasModelIfRequired;
   }

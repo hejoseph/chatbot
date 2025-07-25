@@ -359,13 +359,32 @@ export class LLMSelectorComponent implements OnInit {
 
   loadApiKeys() {
     const saved = localStorage.getItem('llm-api-keys');
+    let keys: LLMApiKey[] = [];
     if (saved) {
-      this.availableApiKeys = JSON.parse(saved);
-      // Set the active key as selected
-      this.selectedApiKey = this.availableApiKeys.find(key => key.isActive) || null;
-      if (this.selectedApiKey) {
-        this.llmSelected.emit(this.selectedApiKey);
-      }
+      keys = JSON.parse(saved);
+    }
+
+    // Add the default Puter.com key if it doesn't exist
+    const puterKeyExists = keys.some(key => key.id === 'puter-claude-sonnet');
+    if (!puterKeyExists) {
+      const puterKey: LLMApiKey = {
+        id: 'puter-claude-sonnet',
+        name: 'Claude Sonnet',
+        provider: 'Puter.com',
+        apiKey: 'N/A',
+        model: 'claude-sonnet-4',
+        isActive: false,
+        testStatus: 'untested'
+      };
+      keys.unshift(puterKey);
+    }
+
+    this.availableApiKeys = keys;
+
+    // Set the active key as selected
+    this.selectedApiKey = this.availableApiKeys.find(key => key.isActive) || null;
+    if (this.selectedApiKey) {
+      this.llmSelected.emit(this.selectedApiKey);
     }
   }
 

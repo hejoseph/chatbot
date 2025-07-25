@@ -4,7 +4,7 @@ export interface Message {
   timestamp: Date;
   isUser: boolean;
   isTyping?: boolean;
-  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'error';
+  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'error' | 'reading';
 }
 
 export interface ChatSession {

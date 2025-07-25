@@ -155,6 +155,8 @@ export class ChatService {
       return this.callOpenAIAPI(userMessage);
     } else if (this.selectedLLM.provider === 'Anthropic') {
       return this.callAnthropicAPI(userMessage);
+    } else if (this.selectedLLM.provider === 'Puter.com') {
+      return this.callPuterAPI(userMessage);
     } else {
       // Fallback for other providers
       return this.simulateAIResponse(userMessage);
@@ -281,6 +283,22 @@ export class ChatService {
         console.error('Anthropic API error:', error);
         observer.error(error);
       });
+    });
+  }
+
+  private callPuterAPI(userMessage: string): Observable<string> {
+    return new Observable(observer => {
+      const model = this.selectedLLM!.model || 'claude-sonnet-4';
+      puter.ai.chat(userMessage, { model: model })
+        .then((response: any) => {
+          const responseText = response?.message?.content?.[0]?.text || '';
+          observer.next(responseText);
+          observer.complete();
+        })
+        .catch((error: any) => {
+          console.error('Puter.com API error:', error);
+          observer.error(error);
+        });
     });
   }
 
