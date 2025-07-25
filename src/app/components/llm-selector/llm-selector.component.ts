@@ -17,7 +17,12 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
           @if (selectedApiKey) {
             <div class="llm-info">
               <span class="llm-name">{{ selectedApiKey.name }}</span>
-              <span class="llm-provider">{{ selectedApiKey.provider }}</span>
+              <div class="provider-model-info">
+                <span class="llm-provider">{{ selectedApiKey.provider }}</span>
+                @if (selectedApiKey.model && isGoogleGeminiProvider(selectedApiKey.provider)) {
+                  <span class="llm-model">{{ getModelDisplayName(selectedApiKey.model) }}</span>
+                }
+              </div>
             </div>
           } @else {
             <div class="llm-info">
@@ -143,6 +148,12 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
       max-width: 150px;
     }
 
+    .provider-model-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
     .llm-provider {
       font-size: var(--font-size-caption);
       color: var(--text-tertiary);
@@ -150,6 +161,20 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 150px;
+    }
+
+    .llm-model {
+      font-size: var(--font-size-caption);
+      color: var(--apple-blue);
+      background: rgba(0, 122, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+      align-self: flex-start;
     }
 
     .dropdown-icon {
@@ -351,5 +376,19 @@ export class LLMSelectorComponent implements OnInit {
   // Method to refresh the component when settings are saved
   refreshApiKeys() {
     this.loadApiKeys();
+  }
+
+  isGoogleGeminiProvider(provider: string): boolean {
+    return provider === 'Google Gemini';
+  }
+
+  getModelDisplayName(model: string): string {
+    const modelNames: { [key: string]: string } = {
+      'gemini-2.5-flash': 'Gemini 2.5 Flash',
+      'gemini-2.0-flash-exp': 'Gemini 2.0 Flash (Exp)',
+      'gemini-1.5-pro': 'Gemini 1.5 Pro',
+      'gemini-1.5-flash': 'Gemini 1.5 Flash'
+    };
+    return modelNames[model] || model;
   }
 }
