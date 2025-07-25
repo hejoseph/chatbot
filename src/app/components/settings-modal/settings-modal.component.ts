@@ -56,8 +56,8 @@ export interface LLMApiKey {
                       <div class="api-key-value">
                         <input 
                           type="password" 
-                          [value]="apiKey.apiKey"
-                          (input)="updateApiKey(apiKey.id, 'apiKey', $event)"
+                          [(ngModel)]="apiKey.apiKey"
+                          (ngModelChange)="updateApiKey(apiKey.id, 'apiKey', $event)"
                           placeholder="Enter API key"
                           class="api-key-input">
                         @if (apiKey.testStatus) {
@@ -595,7 +595,11 @@ export class SettingsModalComponent implements OnInit {
   loadApiKeys() {
     const saved = localStorage.getItem('llm-api-keys');
     if (saved) {
-      this.apiKeys = JSON.parse(saved);
+      const keys = JSON.parse(saved) as LLMApiKey[];
+      this.apiKeys = keys.map(key => ({
+        ...key,
+        lastTested: key.lastTested ? new Date(key.lastTested) : undefined
+      }));
     }
   }
 
