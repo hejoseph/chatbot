@@ -364,10 +364,10 @@ export class LLMSelectorComponent implements OnInit {
       keys = JSON.parse(saved);
     }
 
-    // Add the default Puter.com key if it doesn't exist
-    const puterKeyExists = keys.some(key => key.id === 'puter-claude-sonnet');
-    if (!puterKeyExists) {
-      const puterKey: LLMApiKey = {
+    // Add the default Puter.com keys if they don't exist
+    const puterSonnetKeyExists = keys.some(key => key.id === 'puter-claude-sonnet');
+    if (!puterSonnetKeyExists) {
+      const puterSonnetKey: LLMApiKey = {
         id: 'puter-claude-sonnet',
         name: 'Claude Sonnet',
         provider: 'Puter.com',
@@ -376,7 +376,21 @@ export class LLMSelectorComponent implements OnInit {
         isActive: false,
         testStatus: 'untested'
       };
-      keys.unshift(puterKey);
+      keys.unshift(puterSonnetKey);
+    }
+
+    const puterOpusKeyExists = keys.some(key => key.id === 'puter-claude-opus');
+    if (!puterOpusKeyExists) {
+      const puterOpusKey: LLMApiKey = {
+        id: 'puter-claude-opus',
+        name: 'Claude Opus',
+        provider: 'Puter.com',
+        apiKey: 'N/A',
+        model: 'claude-opus-4',
+        isActive: false,
+        testStatus: 'untested'
+      };
+      keys.splice(1, 0, puterOpusKey); // Insert after Sonnet
     }
 
     this.availableApiKeys = keys;
