@@ -289,7 +289,11 @@ export class ChatService {
   private callPuterAPI(userMessage: string): Observable<string> {
     return new Observable(observer => {
       const model = this.selectedLLM!.model || 'claude-sonnet-4';
-      puter.ai.chat(userMessage, { model: model })
+      
+      // Build conversation history for context
+      const conversationHistory = this.buildPuterConversationHistory(userMessage);
+      
+      puter.ai.chat(conversationHistory, { model: model })
         .then((response: any) => {
           const responseText = response?.message?.content?.[0]?.text || '';
           observer.next(responseText);
@@ -347,6 +351,32 @@ export class ChatService {
       parts: [{
         text: currentUserMessage
       }]
+    });
+    
+    return conversationHistory;
+  }
+
+  private buildPuterConversationHistory(currentUserMessage: string): any[] {
+    const currentMessages = this.messagesSubject.value;
+    const conversationHistory: any[] = [];
+    
+    // Add previous messages to conversation history (excluding the current user message)
+    for (const message of currentMessages) {
+      // Skip typing indicators and messages with errors
+      if (message.isTyping || message.status === 'error') {
+        continue;
+      }
+      
+      conversationHistory.push({
+        role: message.isUser ? 'user' : 'assistant',
+        content: message.content
+      });
+    }
+    
+    // Add the current user message
+    conversationHistory.push({
+      role: 'user',
+      content: currentUserMessage
     });
     
     return conversationHistory;
