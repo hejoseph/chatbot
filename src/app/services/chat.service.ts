@@ -249,39 +249,79 @@ export class ChatService {
 
   private callAnthropicAPI(userMessage: string): Observable<string> {
     return new Observable(observer => {
-      fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': this.selectedLLM!.apiKey,
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01'
+      // Build optimized conversation history for Claude models
+      this.buildOptimizedConversationHistory(userMessage, 'anthropic').subscribe({
+        next: (messages) => {
+          fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'x-api-key': this.selectedLLM!.apiKey,
+              'Content-Type': 'application/json',
+              'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+              model: 'claude-3-haiku-20240307',
+              max_tokens: 1024,
+              messages: messages
+            })
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Anthropic API request failed: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.content && data.content[0] && data.content[0].text) {
+              observer.next(data.content[0].text);
+            } else {
+              throw new Error('Invalid response format from Anthropic API');
+            }
+            observer.complete();
+          })
+          .catch(error => {
+            console.error('Anthropic API error:', error);
+            observer.error(error);
+          });
         },
-        body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 1024,
-          messages: [{
-            role: 'user',
-            content: userMessage
-          }]
-        })
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Anthropic API request failed: ${response.status} ${response.statusText}`);
+        error: (error) => {
+          console.error('Error building conversation history:', error);
+          // Fallback to simple message
+          fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'x-api-key': this.selectedLLM!.apiKey,
+              'Content-Type': 'application/json',
+              'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+              model: 'claude-3-haiku-20240307',
+              max_tokens: 1024,
+              messages: [{
+                role: 'user',
+                content: userMessage
+              }]
+            })
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Anthropic API request failed: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.content && data.content[0] && data.content[0].text) {
+              observer.next(data.content[0].text);
+            } else {
+              throw new Error('Invalid response format from Anthropic API');
+            }
+            observer.complete();
+          })
+          .catch(error => {
+            console.error('Anthropic API error:', error);
+            observer.error(error);
+          });
         }
-        return response.json();
-      })
-      .then(data => {
-        if (data.content && data.content[0] && data.content[0].text) {
-          observer.next(data.content[0].text);
-        } else {
-          throw new Error('Invalid response format from Anthropic API');
-        }
-        observer.complete();
-      })
-      .catch(error => {
-        console.error('Anthropic API error:', error);
-        observer.error(error);
       });
     });
   }
@@ -540,9 +580,40 @@ Summary:`;
             console.error('Summarization error:', error);
             observer.error(error);
           });
+      } else if (this.selectedLLM?.provider === 'Anthropic') {
+        // For direct Anthropic API calls, use the same model for summarization
+        fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': this.selectedLLM.apiKey,
+            'Content-Type': 'application/json',
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: this.selectedLLM.model || 'claude-3-haiku-20240307',
+            max_tokens: 300,
+            messages: summaryHistory
+          })
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Anthropic summarization failed: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          const summary = data.content?.[0]?.text || '';
+          observer.next(summary);
+          observer.complete();
+        })
+        .catch(error => {
+          console.error('Anthropic summarization error:', error);
+          observer.error(error);
+        });
       } else {
-        // For direct Anthropic API calls
-        observer.error(new Error('Summarization not implemented for direct Anthropic API'));
+        // For other providers, return empty summary
+        observer.next('');
+        observer.complete();
       }
     });
   }
