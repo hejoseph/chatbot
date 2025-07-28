@@ -172,6 +172,44 @@ export interface LLMApiKey {
               </button>
             </div>
           </div>
+          
+          <div class="settings-section">
+            <h3 class="section-title">Claude Optimization</h3>
+            <p class="section-description">Reduce token usage for Claude Sonnet and Opus models by summarizing older conversation history</p>
+            
+            <div class="optimization-settings">
+              <div class="optimization-option">
+                <div class="option-info">
+                  <span class="option-name">Enable Claude Optimization</span>
+                  <span class="option-description">Automatically summarize conversation history after 8 messages to reduce token costs</span>
+                </div>
+                <label class="toggle-switch">
+                  <input 
+                    type="checkbox" 
+                    [(ngModel)]="claudeOptimizationEnabled"
+                    (change)="onClaudeOptimizationChange()">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              @if (claudeOptimizationEnabled) {
+                <div class="optimization-details">
+                  <div class="detail-item">
+                    <span class="detail-label">Trigger:</span>
+                    <span class="detail-value">After 8 messages</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Recent messages kept:</span>
+                    <span class="detail-value">Last 6 messages in full</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Older messages:</span>
+                    <span class="detail-value">Summarized using same Claude model</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
         </div>
         
         <div class="modal-footer">
@@ -573,6 +611,121 @@ export interface LLMApiKey {
       background: var(--apple-gray);
       border-radius: 3px;
     }
+
+    /* Claude Optimization Settings */
+    .optimization-settings {
+      background: var(--background-secondary);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-lg);
+      border: 1px solid var(--separator);
+    }
+
+    .optimization-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-md);
+    }
+
+    .option-info {
+      flex: 1;
+    }
+
+    .option-name {
+      display: block;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .option-description {
+      display: block;
+      font-size: var(--font-size-footnote);
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--apple-gray);
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    input:checked + .toggle-slider {
+      background-color: var(--apple-blue);
+    }
+
+    input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+
+    .optimization-details {
+      margin-top: var(--spacing-md);
+      padding-top: var(--spacing-md);
+      border-top: 1px solid var(--separator);
+    }
+
+    .detail-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .detail-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .detail-label {
+      font-size: var(--font-size-footnote);
+      color: var(--text-secondary);
+    }
+
+    .detail-value {
+      font-size: var(--font-size-footnote);
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .optimization-settings {
+        background: var(--background-tertiary);
+        border: 1px solid var(--apple-gray-dark);
+      }
+    }
   `]
 })
 export class SettingsModalComponent implements OnInit {
@@ -582,6 +735,7 @@ export class SettingsModalComponent implements OnInit {
 
   apiKeys: LLMApiKey[] = [];
   testingKeys: { [key: string]: boolean } = {};
+  claudeOptimizationEnabled = true; // Default to ON as requested
   newApiKey = {
     name: '',
     provider: '',
@@ -591,6 +745,7 @@ export class SettingsModalComponent implements OnInit {
 
   ngOnInit() {
     this.loadApiKeys();
+    this.loadOptimizationSettings();
   }
 
   loadApiKeys() {
@@ -803,8 +958,24 @@ export class SettingsModalComponent implements OnInit {
     }
   }
 
+  loadOptimizationSettings() {
+    const saved = localStorage.getItem('claude-optimization-enabled');
+    if (saved !== null) {
+      this.claudeOptimizationEnabled = JSON.parse(saved);
+    }
+  }
+
+  saveOptimizationSettings() {
+    localStorage.setItem('claude-optimization-enabled', JSON.stringify(this.claudeOptimizationEnabled));
+  }
+
+  onClaudeOptimizationChange() {
+    this.saveOptimizationSettings();
+  }
+
   saveSettings() {
     this.saveApiKeys();
+    this.saveOptimizationSettings();
     this.settingsSaved.emit(this.apiKeys);
     this.closeModal.emit();
   }

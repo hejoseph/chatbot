@@ -443,8 +443,9 @@ export class ChatService {
     return new Observable(observer => {
       const model = this.selectedLLM?.model || '';
       const isClaudeModel = this.isClaudeModel(model);
+      const optimizationEnabled = this.isClaudeOptimizationEnabled();
       
-      if (!isClaudeModel) {
+      if (!isClaudeModel || !optimizationEnabled) {
         // For non-Claude models, use the original method
         if (apiType === 'puter') {
           observer.next(this.buildPuterConversationHistory(currentUserMessage));
@@ -822,5 +823,13 @@ Summary:`;
 
   getSelectedLLM(): LLMApiKey | null {
     return this.selectedLLM;
+  }
+
+  private isClaudeOptimizationEnabled(): boolean {
+    const saved = localStorage.getItem('claude-optimization-enabled');
+    if (saved !== null) {
+      return JSON.parse(saved);
+    }
+    return true; // Default to enabled
   }
 }

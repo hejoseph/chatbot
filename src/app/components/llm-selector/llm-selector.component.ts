@@ -22,6 +22,9 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
                 @if (selectedApiKey.model && isGoogleGeminiProvider(selectedApiKey.provider)) {
                   <span class="llm-model">{{ getModelDisplayName(selectedApiKey.model) }}</span>
                 }
+                @if (isClaudeModelOptimized(selectedApiKey)) {
+                  <span class="optimization-badge">Optimized</span>
+                }
               </div>
             </div>
           } @else {
@@ -306,6 +309,17 @@ import { LLMApiKey } from '../settings-modal/settings-modal.component';
       white-space: nowrap;
     }
 
+    .optimization-badge {
+      font-size: var(--font-size-caption);
+      color: var(--apple-green);
+      background: rgba(52, 199, 89, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+      white-space: nowrap;
+      align-self: flex-start;
+    }
+
     .api-key-status {
       flex-shrink: 0;
     }
@@ -444,5 +458,19 @@ export class LLMSelectorComponent implements OnInit {
       'gemini-1.5-flash': 'Gemini 1.5 Flash'
     };
     return modelNames[model] || model;
+  }
+
+  isClaudeModelOptimized(apiKey: LLMApiKey): boolean {
+    if (!apiKey.model) return false;
+    
+    const isClaudeModel = apiKey.model.includes('claude-sonnet') || 
+                         apiKey.model.includes('claude-opus') || 
+                         apiKey.model.includes('claude-3-sonnet') || 
+                         apiKey.model.includes('claude-3-opus');
+    
+    if (!isClaudeModel) return false;
+    
+    const optimizationEnabled = localStorage.getItem('claude-optimization-enabled');
+    return optimizationEnabled !== null ? JSON.parse(optimizationEnabled) : true;
   }
 }
