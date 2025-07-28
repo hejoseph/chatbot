@@ -290,19 +290,36 @@ export class ChatService {
     return new Observable(observer => {
       const model = this.selectedLLM!.model || 'claude-sonnet-4';
       
-      // Build conversation history for context
-      const conversationHistory = this.buildPuterConversationHistory(userMessage);
-      
-      puter.ai.chat(conversationHistory, { model: model })
-        .then((response: any) => {
-          const responseText = response?.message?.content?.[0]?.text || '';
-          observer.next(responseText);
-          observer.complete();
-        })
-        .catch((error: any) => {
-          console.error('Puter.com API error:', error);
-          observer.error(error);
-        });
+      // Build conversation history for context (with Claude optimization if applicable)
+      this.buildOptimizedConversationHistory(userMessage, 'puter').subscribe({
+        next: (conversationHistory) => {
+          puter.ai.chat(conversationHistory, { model: model })
+            .then((response: any) => {
+              const responseText = response?.message?.content?.[0]?.text || '';
+              observer.next(responseText);
+              observer.complete();
+            })
+            .catch((error: any) => {
+              console.error('Puter.com API error:', error);
+              observer.error(error);
+            });
+        },
+        error: (error) => {
+          console.error('Error building conversation history:', error);
+          // Fallback to original method
+          const conversationHistory = this.buildPuterConversationHistory(userMessage);
+          puter.ai.chat(conversationHistory, { model: model })
+            .then((response: any) => {
+              const responseText = response?.message?.content?.[0]?.text || '';
+              observer.next(responseText);
+              observer.complete();
+            })
+            .catch((error: any) => {
+              console.error('Puter.com API error:', error);
+              observer.error(error);
+            });
+        }
+      });
     });
   }
 
@@ -380,6 +397,154 @@ export class ChatService {
     });
     
     return conversationHistory;
+  }
+
+  private buildOptimizedConversationHistory(currentUserMessage: string, apiType: 'puter' | 'anthropic'): Observable<any[]> {
+    return new Observable(observer => {
+      const model = this.selectedLLM?.model || '';
+      const isClaudeModel = this.isClaudeModel(model);
+      
+      if (!isClaudeModel) {
+        // For non-Claude models, use the original method
+        if (apiType === 'puter') {
+          observer.next(this.buildPuterConversationHistory(currentUserMessage));
+        } else {
+          observer.next(this.buildAnthropicConversationHistory(currentUserMessage));
+        }
+        observer.complete();
+        return;
+      }
+
+      const currentMessages = this.messagesSubject.value;
+      const validMessages = currentMessages.filter(m => !m.isTyping && m.status !== 'error');
+      
+      // If we have 8 or fewer messages, send all
+      if (validMessages.length <= 8) {
+        if (apiType === 'puter') {
+          observer.next(this.buildPuterConversationHistory(currentUserMessage));
+        } else {
+          observer.next(this.buildAnthropicConversationHistory(currentUserMessage));
+        }
+        observer.complete();
+        return;
+      }
+
+      // Need to summarize older messages
+      const recentMessages = validMessages.slice(-6); // Keep last 6 messages
+      const olderMessages = validMessages.slice(0, -6); // Messages to summarize
+      
+      this.summarizeMessages(olderMessages).subscribe({
+        next: (summary) => {
+          const optimizedHistory: any[] = [];
+          
+          // Add summary as system context
+          if (summary.trim()) {
+            optimizedHistory.push({
+              role: apiType === 'puter' ? 'assistant' : 'assistant',
+              content: `[Previous conversation summary: ${summary}]`
+            });
+          }
+          
+          // Add recent messages
+          for (const message of recentMessages) {
+            optimizedHistory.push({
+              role: message.isUser ? 'user' : 'assistant',
+              content: message.content
+            });
+          }
+          
+          // Add current user message
+          optimizedHistory.push({
+            role: 'user',
+            content: currentUserMessage
+          });
+          
+          observer.next(optimizedHistory);
+          observer.complete();
+        },
+        error: (error) => {
+          console.error('Summarization failed, using full history:', error);
+          // Fallback to full history
+          if (apiType === 'puter') {
+            observer.next(this.buildPuterConversationHistory(currentUserMessage));
+          } else {
+            observer.next(this.buildAnthropicConversationHistory(currentUserMessage));
+          }
+          observer.complete();
+        }
+      });
+    });
+  }
+
+  private buildAnthropicConversationHistory(currentUserMessage: string): any[] {
+    const currentMessages = this.messagesSubject.value;
+    const conversationHistory: any[] = [];
+    
+    // Add previous messages to conversation history (excluding the current user message)
+    for (const message of currentMessages) {
+      // Skip typing indicators and messages with errors
+      if (message.isTyping || message.status === 'error') {
+        continue;
+      }
+      
+      conversationHistory.push({
+        role: message.isUser ? 'user' : 'assistant',
+        content: message.content
+      });
+    }
+    
+    // Add the current user message
+    conversationHistory.push({
+      role: 'user',
+      content: currentUserMessage
+    });
+    
+    return conversationHistory;
+  }
+
+  private isClaudeModel(model: string): boolean {
+    return model.includes('claude-sonnet') || model.includes('claude-opus') || 
+           model.includes('claude-3-sonnet') || model.includes('claude-3-opus');
+  }
+
+  private summarizeMessages(messages: Message[]): Observable<string> {
+    return new Observable(observer => {
+      if (messages.length === 0) {
+        observer.next('');
+        observer.complete();
+        return;
+      }
+
+      // Build conversation text for summarization
+      const conversationText = messages.map(m => 
+        `${m.isUser ? 'User' : 'Assistant'}: ${m.content}`
+      ).join('\n\n');
+
+      const summarizationPrompt = `Please provide a concise summary of the following conversation, focusing on key topics, decisions, and important context that would be relevant for continuing the conversation. Keep it under 200 words:
+
+${conversationText}
+
+Summary:`;
+
+      // Use the same Claude model for summarization
+      const summaryHistory = [{ role: 'user', content: summarizationPrompt }];
+      
+      if (this.selectedLLM?.provider === 'Puter.com') {
+        puter.ai.chat(summaryHistory, { model: this.selectedLLM.model })
+          .then((response: any) => {
+            const summary = response?.message?.content?.[0]?.text || '';
+            observer.next(summary);
+            observer.complete();
+          })
+          .catch((error: any) => {
+            console.error('Summarization error:', error);
+            observer.error(error);
+          });
+      } else {
+        // For direct Anthropic API calls
+        observer.error(new Error('Summarization not implemented for direct Anthropic API'));
+      }
+    });
   }
 
   private updateMessageStatus(messageId: string, status: Message['status']): void {
