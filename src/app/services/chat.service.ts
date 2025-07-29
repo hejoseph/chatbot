@@ -1,8 +1,16 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, delay, of } from 'rxjs';
-import { Message, ChatSession } from '../models/message.model';
+import { Message, ChatSession, SummaryMetadata, SessionSummaryState } from '../models/message.model';
 import { IndexedDBService } from './indexeddb.service';
 import { LLMApiKey } from '../components/settings-modal/settings-modal.component';
+
+interface SummarizationAnalysis {
+  needsNewSummary: boolean;
+  existingSummary: Message | null;
+  messagesToSummarize: Message[];
+  recentMessages: Message[];
+  totalMessagesCount: number;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -67,7 +75,8 @@ export class ChatService {
         }
       ],
       lastActivity: new Date(),
-      isActive: true
+      isActive: true,
+      summaryState: this.initializeSummaryState()
     };
 
     this.sessionsSubject.next([defaultSession]);
@@ -473,41 +482,14 @@ export class ChatService {
         return;
       }
 
-      // Need to summarize older messages
-      const recentMessages = validMessages.slice(-optimizationSettings.keep); // Keep last N messages
-      const olderMessages = validMessages.slice(0, -optimizationSettings.keep); // Messages to summarize
-      
-      this.summarizeMessages(olderMessages).subscribe({
-        next: (summary) => {
-          const optimizedHistory: any[] = [];
-          
-          // Add summary as system context
-          if (summary.trim()) {
-            optimizedHistory.push({
-              role: apiType === 'puter' ? 'assistant' : 'assistant',
-              content: `[Previous conversation summary: ${summary}]`
-            });
-          }
-          
-          // Add recent messages
-          for (const message of recentMessages) {
-            optimizedHistory.push({
-              role: message.isUser ? 'user' : 'assistant',
-              content: message.content
-            });
-          }
-          
-          // Add current user message
-          optimizedHistory.push({
-            role: 'user',
-            content: currentUserMessage
-          });
-          
+      // Use sophisticated summary management
+      this.buildIntelligentConversationHistory(validMessages, currentUserMessage, optimizationSettings, apiType).subscribe({
+        next: (optimizedHistory) => {
           observer.next(optimizedHistory);
           observer.complete();
         },
         error: (error) => {
-          console.error('Summarization failed, using full history:', error);
+          console.error('Intelligent summarization failed, using fallback:', error);
           // Fallback to full history
           if (apiType === 'puter') {
             observer.next(this.buildPuterConversationHistory(currentUserMessage));
@@ -544,6 +526,325 @@ export class ChatService {
     });
     
     return conversationHistory;
+  }
+
+  private buildIntelligentConversationHistory(
+    validMessages: Message[], 
+    currentUserMessage: string, 
+    optimizationSettings: { trigger: number, keep: number },
+    apiType: 'puter' | 'anthropic'
+  ): Observable<any[]> {
+    return new Observable(observer => {
+      const currentSession = this.getCurrentSession();
+      const summaryState = currentSession?.summaryState || this.initializeSummaryState();
+      
+      // Analyze what needs to be summarized
+      const analysis = this.analyzeSummarizationNeeds(validMessages, summaryState, optimizationSettings);
+      
+      if (analysis.needsNewSummary) {
+        this.createIncrementalSummary(analysis, apiType).subscribe({
+          next: (newSummaryMessage) => {
+            // Update the session with the new summary
+            this.updateSessionWithSummary(newSummaryMessage, analysis);
+            
+            // Build the optimized history
+            const optimizedHistory = this.buildHistoryWithSummary(
+              newSummaryMessage, 
+              analysis.recentMessages, 
+              currentUserMessage, 
+              apiType
+            );
+            
+            observer.next(optimizedHistory);
+            observer.complete();
+          },
+          error: (error) => {
+            console.error('Incremental summarization failed:', error);
+            observer.error(error);
+          }
+        });
+      } else {
+        // Use existing summary if available
+        const optimizedHistory = this.buildHistoryWithExistingSummary(
+          validMessages,
+          currentUserMessage,
+          optimizationSettings,
+          apiType
+        );
+        
+        observer.next(optimizedHistory);
+        observer.complete();
+      }
+    });
+  }
+
+  private getCurrentSession(): ChatSession | null {
+    const sessions = this.sessionsSubject.value;
+    return sessions.find(s => s.id === this.currentSessionId) || null;
+  }
+
+  private initializeSummaryState(): SessionSummaryState {
+    return {
+      lastSummarizedMessageId: null,
+      totalSummarizedMessages: 0,
+      summaryVersion: 0,
+      lastOptimizationAt: null
+    };
+  }
+
+  private analyzeSummarizationNeeds(
+    validMessages: Message[], 
+    summaryState: SessionSummaryState,
+    optimizationSettings: { trigger: number, keep: number }
+  ): SummarizationAnalysis {
+    const totalCount = validMessages.length;
+    const recentMessages = validMessages.slice(-optimizationSettings.keep);
+    
+    // Use cached summary instead of looking in display messages
+    const existingSummary = summaryState.cachedSummary || null;
+    
+    // Determine if we need a new summary
+    let needsNewSummary = false;
+    let messagesToSummarize: Message[] = [];
+    
+    if (!existingSummary) {
+      // No existing summary, need to create one
+      const messagesToSummarizeCount = totalCount - optimizationSettings.keep;
+      if (messagesToSummarizeCount > 0) {
+        needsNewSummary = true;
+        messagesToSummarize = validMessages.slice(0, messagesToSummarizeCount);
+      }
+    } else {
+      // Check if we have enough new messages since last summary to warrant a new one
+      const lastSummarizedId = summaryState.lastSummarizedMessageId;
+      const lastSummarizedIndex = lastSummarizedId ? 
+        validMessages.findIndex(m => m.id === lastSummarizedId) : -1;
+      
+      const messagesSinceSummary = lastSummarizedIndex >= 0 ? 
+        validMessages.slice(lastSummarizedIndex + 1) : validMessages;
+      const nonRecentMessagesSinceSummary = messagesSinceSummary.slice(0, -optimizationSettings.keep);
+      
+      // Create new summary if we have enough non-recent messages since last summary
+      if (nonRecentMessagesSinceSummary.length >= optimizationSettings.trigger / 2) {
+        needsNewSummary = true;
+        // Include the content that was previously summarized plus new messages to summarize
+        const previouslySummarizedIds = existingSummary.summaryMetadata?.originalMessageIds || [];
+        messagesToSummarize = [
+          ...validMessages.filter(m => previouslySummarizedIds.includes(m.id)),
+          ...nonRecentMessagesSinceSummary
+        ];
+      }
+    }
+    
+    return {
+      needsNewSummary,
+      existingSummary,
+      messagesToSummarize,
+      recentMessages,
+      totalMessagesCount: totalCount
+    };
+  }
+
+  private createIncrementalSummary(
+    analysis: SummarizationAnalysis,
+    apiType: 'puter' | 'anthropic'
+  ): Observable<Message> {
+    return new Observable(observer => {
+      if (analysis.messagesToSummarize.length === 0) {
+        observer.error(new Error('No messages to summarize'));
+        return;
+      }
+
+      // Create enhanced summarization prompt
+      const conversationText = analysis.messagesToSummarize
+        .filter(m => !m.isSummary) // Don't include existing summaries in the text
+        .map(m => `${m.isUser ? 'User' : 'Assistant'}: ${m.content}`)
+        .join('\n\n');
+
+      const existingSummaryText = analysis.existingSummary ? 
+        `Previous summary: ${analysis.existingSummary.content}\n\n` : '';
+
+      const enhancedPrompt = `${existingSummaryText}Please create a comprehensive summary of the following conversation, incorporating any previous summary context. Focus on:
+- Key topics and themes discussed
+- Important decisions or conclusions reached
+- User preferences or requirements mentioned
+- Technical details or specifications
+- Any ongoing tasks or follow-ups
+- Context that would be valuable for continuing the conversation
+
+Keep the summary concise but comprehensive (under 300 words):
+
+${conversationText}
+
+Summary:`;
+
+      const summaryHistory = [{ role: 'user', content: enhancedPrompt }];
+      
+      if (this.selectedLLM?.provider === 'Puter.com') {
+        puter.ai.chat(summaryHistory, { model: this.selectedLLM.model })
+          .then((response: any) => {
+            const summaryContent = response?.message?.content?.[0]?.text || '';
+            const summaryMessage = this.createSummaryMessage(summaryContent, analysis);
+            observer.next(summaryMessage);
+            observer.complete();
+          })
+          .catch((error: any) => {
+            console.error('Puter summarization error:', error);
+            observer.error(error);
+          });
+      } else if (this.selectedLLM?.provider === 'Anthropic') {
+        fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': this.selectedLLM.apiKey,
+            'Content-Type': 'application/json',
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: this.selectedLLM.model || 'claude-3-haiku-20240307',
+            max_tokens: 400,
+            messages: summaryHistory
+          })
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Anthropic summarization failed: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          const summaryContent = data.content?.[0]?.text || '';
+          const summaryMessage = this.createSummaryMessage(summaryContent, analysis);
+          observer.next(summaryMessage);
+          observer.complete();
+        })
+        .catch(error => {
+          console.error('Anthropic summarization error:', error);
+          observer.error(error);
+        });
+      } else {
+        observer.error(new Error('Unsupported provider for summarization'));
+      }
+    });
+  }
+
+  private createSummaryMessage(summaryContent: string, analysis: SummarizationAnalysis): Message {
+    const originalMessageIds = analysis.messagesToSummarize
+      .filter((m: Message) => !m.isSummary)
+      .map((m: Message) => m.id);
+    
+    const summaryMetadata: SummaryMetadata = {
+      originalMessageIds,
+      summaryVersion: (analysis.existingSummary?.summaryMetadata?.summaryVersion || 0) + 1,
+      createdAt: new Date(),
+      messageCount: originalMessageIds.length,
+      tokenEstimate: Math.ceil(summaryContent.length / 4) // Rough token estimate
+    };
+
+    return {
+      id: `summary_${Date.now()}`,
+      content: summaryContent,
+      timestamp: new Date(),
+      isUser: false,
+      status: 'read',
+      isSummary: true,
+      summaryMetadata
+    };
+  }
+
+  private updateSessionWithSummary(summaryMessage: Message, analysis: SummarizationAnalysis): void {
+    const sessions = this.sessionsSubject.value;
+    
+    // DON'T modify the display messages - user should see full history
+    // Only update the session's summary state for API optimization
+    const updatedSessions = sessions.map(session => 
+      session.id === this.currentSessionId 
+        ? { 
+            ...session,
+            // Keep original messages for display - don't remove anything
+            summaryState: {
+              lastSummarizedMessageId: analysis.messagesToSummarize[analysis.messagesToSummarize.length - 1]?.id || null,
+              totalSummarizedMessages: (session.summaryState?.totalSummarizedMessages || 0) + analysis.messagesToSummarize.filter((m: Message) => !m.isSummary).length,
+              summaryVersion: summaryMessage.summaryMetadata!.summaryVersion,
+              lastOptimizationAt: new Date(),
+              cachedSummary: summaryMessage // Store summary for API use only
+            }
+          }
+        : session
+    );
+    
+    this.sessionsSubject.next(updatedSessions);
+    // DON'T update messagesSubject - keep original messages for display
+    this.saveSessionsToStorage();
+  }
+
+  private buildHistoryWithSummary(
+    summaryMessage: Message,
+    recentMessages: Message[],
+    currentUserMessage: string,
+    apiType: 'puter' | 'anthropic'
+  ): any[] {
+    const optimizedHistory: any[] = [];
+    
+    // Add summary as context
+    optimizedHistory.push({
+      role: 'assistant',
+      content: `[Conversation Summary: ${summaryMessage.content}]`
+    });
+    
+    // Add recent messages
+    for (const message of recentMessages) {
+      if (!message.isSummary) {
+        optimizedHistory.push({
+          role: message.isUser ? 'user' : 'assistant',
+          content: message.content
+        });
+      }
+    }
+    
+    // Add current user message
+    optimizedHistory.push({
+      role: 'user',
+      content: currentUserMessage
+    });
+    
+    return optimizedHistory;
+  }
+
+  private buildHistoryWithExistingSummary(
+    validMessages: Message[],
+    currentUserMessage: string,
+    optimizationSettings: { trigger: number, keep: number },
+    apiType: 'puter' | 'anthropic'
+  ): any[] {
+    const optimizedHistory: any[] = [];
+    const currentSession = this.getCurrentSession();
+    const cachedSummary = currentSession?.summaryState?.cachedSummary;
+    const recentMessages = validMessages.slice(-optimizationSettings.keep);
+    
+    // Add cached summary if available (not from display messages)
+    if (cachedSummary) {
+      optimizedHistory.push({
+        role: 'assistant',
+        content: `[Conversation Summary: ${cachedSummary.content}]`
+      });
+    }
+    
+    // Add recent messages (all messages since they're not summaries in display)
+    for (const message of recentMessages) {
+      optimizedHistory.push({
+        role: message.isUser ? 'user' : 'assistant',
+        content: message.content
+      });
+    }
+    
+    // Add current user message
+    optimizedHistory.push({
+      role: 'user',
+      content: currentUserMessage
+    });
+    
+    return optimizedHistory;
   }
 
   private isClaudeModel(model: string): boolean {
@@ -683,7 +984,8 @@ Summary:`;
         }
       ],
       lastActivity: new Date(),
-      isActive: true
+      isActive: true,
+      summaryState: this.initializeSummaryState()
     };
 
     const sessions = this.sessionsSubject.value;
@@ -843,6 +1145,117 @@ Summary:`;
     return {
       trigger: savedTrigger !== null ? JSON.parse(savedTrigger) : 8,
       keep: savedKeep !== null ? JSON.parse(savedKeep) : 6
+    };
+  }
+
+  // Utility methods for monitoring and managing the sophisticated summary system
+
+  getSummaryStats(): {
+    hasSummary: boolean;
+    summaryVersion: number;
+    totalSummarizedMessages: number;
+    lastOptimizationAt: Date | null;
+    estimatedTokensSaved: number;
+    currentMessageCount: number;
+  } {
+    const currentSession = this.getCurrentSession();
+    const currentMessages = this.messagesSubject.value;
+    const cachedSummary = currentSession?.summaryState?.cachedSummary;
+    
+    const stats = {
+      hasSummary: !!cachedSummary,
+      summaryVersion: cachedSummary?.summaryMetadata?.summaryVersion || 0,
+      totalSummarizedMessages: currentSession?.summaryState?.totalSummarizedMessages || 0,
+      lastOptimizationAt: currentSession?.summaryState?.lastOptimizationAt || null,
+      estimatedTokensSaved: 0,
+      currentMessageCount: currentMessages.filter(m => !m.isTyping && m.status !== 'error').length
+    };
+
+    // Estimate tokens saved
+    if (cachedSummary && cachedSummary.summaryMetadata) {
+      const originalMessageCount = cachedSummary.summaryMetadata.messageCount;
+      const summaryTokens = cachedSummary.summaryMetadata.tokenEstimate || 0;
+      const estimatedOriginalTokens = originalMessageCount * 50; // Rough estimate
+      stats.estimatedTokensSaved = Math.max(0, estimatedOriginalTokens - summaryTokens);
+    }
+
+    return stats;
+  }
+
+  forceSummaryOptimization(): Observable<boolean> {
+    return new Observable(observer => {
+      const currentMessages = this.messagesSubject.value;
+      const validMessages = currentMessages.filter(m => !m.isTyping && m.status !== 'error');
+      const optimizationSettings = this.getOptimizationSettings();
+
+      if (validMessages.length <= optimizationSettings.trigger) {
+        observer.next(false);
+        observer.complete();
+        return;
+      }
+
+      this.buildIntelligentConversationHistory(validMessages, '', optimizationSettings, 'anthropic').subscribe({
+        next: () => {
+          observer.next(true);
+          observer.complete();
+        },
+        error: (error) => {
+          console.error('Force optimization failed:', error);
+          observer.next(false);
+          observer.complete();
+        }
+      });
+    });
+  }
+
+  clearSummaryOptimization(): void {
+    const sessions = this.sessionsSubject.value;
+    
+    // Reset summary state only (messages remain unchanged for display)
+    const updatedSessions = sessions.map(session => 
+      session.id === this.currentSessionId 
+        ? { 
+            ...session,
+            summaryState: this.initializeSummaryState()
+          }
+        : session
+    );
+    
+    this.sessionsSubject.next(updatedSessions);
+    // Don't modify messagesSubject - keep full conversation visible
+    this.saveSessionsToStorage();
+  }
+
+  updateOptimizationSettings(trigger: number, keep: number): void {
+    localStorage.setItem('claude-optimization-trigger', JSON.stringify(trigger));
+    localStorage.setItem('claude-optimization-keep', JSON.stringify(keep));
+  }
+
+  toggleClaudeOptimization(enabled: boolean): void {
+    localStorage.setItem('claude-optimization-enabled', JSON.stringify(enabled));
+  }
+
+  // Debug method to inspect summarization state
+  debugSummaryState(): any {
+    const currentSession = this.getCurrentSession();
+    const currentMessages = this.messagesSubject.value;
+    const cachedSummary = currentSession?.summaryState?.cachedSummary;
+    
+    return {
+      sessionSummaryState: currentSession?.summaryState,
+      cachedSummary: cachedSummary ? {
+        id: cachedSummary.id,
+        content: cachedSummary.content.substring(0, 100) + '...',
+        metadata: cachedSummary.summaryMetadata
+      } : null,
+      displayMessages: {
+        total: currentMessages.length,
+        valid: currentMessages.filter(m => !m.isTyping && m.status !== 'error').length,
+        hasSummaryInDisplay: currentMessages.some(m => m.isSummary) // Should be false
+      },
+      optimizationSettings: this.getOptimizationSettings(),
+      isClaudeModel: this.isClaudeModel(this.selectedLLM?.model || ''),
+      optimizationEnabled: this.isClaudeOptimizationEnabled()
     };
   }
 }
