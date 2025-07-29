@@ -459,8 +459,11 @@ export class ChatService {
       const currentMessages = this.messagesSubject.value;
       const validMessages = currentMessages.filter(m => !m.isTyping && m.status !== 'error');
       
-      // If we have 8 or fewer messages, send all
-      if (validMessages.length <= 8) {
+      // Get user-configured optimization settings
+      const optimizationSettings = this.getOptimizationSettings();
+      
+      // If we have fewer messages than trigger threshold, send all
+      if (validMessages.length <= optimizationSettings.trigger) {
         if (apiType === 'puter') {
           observer.next(this.buildPuterConversationHistory(currentUserMessage));
         } else {
@@ -471,8 +474,8 @@ export class ChatService {
       }
 
       // Need to summarize older messages
-      const recentMessages = validMessages.slice(-6); // Keep last 6 messages
-      const olderMessages = validMessages.slice(0, -6); // Messages to summarize
+      const recentMessages = validMessages.slice(-optimizationSettings.keep); // Keep last N messages
+      const olderMessages = validMessages.slice(0, -optimizationSettings.keep); // Messages to summarize
       
       this.summarizeMessages(olderMessages).subscribe({
         next: (summary) => {
@@ -831,5 +834,15 @@ Summary:`;
       return JSON.parse(saved);
     }
     return true; // Default to enabled
+  }
+
+  private getOptimizationSettings(): { trigger: number, keep: number } {
+    const savedTrigger = localStorage.getItem('claude-optimization-trigger');
+    const savedKeep = localStorage.getItem('claude-optimization-keep');
+    
+    return {
+      trigger: savedTrigger !== null ? JSON.parse(savedTrigger) : 8,
+      keep: savedKeep !== null ? JSON.parse(savedKeep) : 6
+    };
   }
 }

@@ -195,16 +195,34 @@ export interface LLMApiKey {
               @if (claudeOptimizationEnabled) {
                 <div class="optimization-details">
                   <div class="detail-item">
-                    <span class="detail-label">Trigger:</span>
-                    <span class="detail-value">After 8 messages</span>
+                    <span class="detail-label">Trigger after messages:</span>
+                    <input 
+                      type="number" 
+                      [(ngModel)]="optimizationTrigger"
+                      (ngModelChange)="onOptimizationSettingsChange()"
+                      min="5" 
+                      max="50" 
+                      class="detail-input">
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">Recent messages kept:</span>
-                    <span class="detail-value">Last 6 messages in full</span>
+                    <span class="detail-label">Recent messages to keep:</span>
+                    <input 
+                      type="number" 
+                      [(ngModel)]="recentMessagesToKeep"
+                      (ngModelChange)="onOptimizationSettingsChange()"
+                      min="2" 
+                      max="20" 
+                      class="detail-input">
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">Older messages:</span>
                     <span class="detail-value">Summarized using same Claude model</span>
+                  </div>
+                  <div class="optimization-help">
+                    <p class="help-text">
+                      <strong>Tip:</strong> Higher trigger values save more context but cost more tokens. 
+                      More recent messages provide better context but increase token usage.
+                    </p>
                   </div>
                 </div>
               }
@@ -720,6 +738,37 @@ export interface LLMApiKey {
       font-weight: 500;
     }
 
+    .detail-input {
+      width: 60px;
+      padding: 4px 8px;
+      border: 1px solid var(--separator);
+      border-radius: 4px;
+      background: var(--background-primary);
+      color: var(--text-primary);
+      font-size: var(--font-size-footnote);
+      text-align: center;
+    }
+
+    .detail-input:focus {
+      border-color: var(--apple-blue);
+      outline: none;
+    }
+
+    .optimization-help {
+      margin-top: var(--spacing-md);
+      padding: var(--spacing-sm);
+      background: rgba(0, 122, 255, 0.05);
+      border-radius: 6px;
+      border-left: 3px solid var(--apple-blue);
+    }
+
+    .help-text {
+      font-size: var(--font-size-caption);
+      color: var(--text-secondary);
+      margin: 0;
+      line-height: 1.4;
+    }
+
     @media (prefers-color-scheme: dark) {
       .optimization-settings {
         background: var(--background-tertiary);
@@ -736,6 +785,8 @@ export class SettingsModalComponent implements OnInit {
   apiKeys: LLMApiKey[] = [];
   testingKeys: { [key: string]: boolean } = {};
   claudeOptimizationEnabled = true; // Default to ON as requested
+  optimizationTrigger = 8; // Default trigger after 8 messages
+  recentMessagesToKeep = 6; // Default keep last 6 messages
   newApiKey = {
     name: '',
     provider: '',
@@ -959,17 +1010,42 @@ export class SettingsModalComponent implements OnInit {
   }
 
   loadOptimizationSettings() {
-    const saved = localStorage.getItem('claude-optimization-enabled');
-    if (saved !== null) {
-      this.claudeOptimizationEnabled = JSON.parse(saved);
+    const savedEnabled = localStorage.getItem('claude-optimization-enabled');
+    if (savedEnabled !== null) {
+      this.claudeOptimizationEnabled = JSON.parse(savedEnabled);
+    }
+
+    const savedTrigger = localStorage.getItem('claude-optimization-trigger');
+    if (savedTrigger !== null) {
+      this.optimizationTrigger = JSON.parse(savedTrigger);
+    }
+
+    const savedKeep = localStorage.getItem('claude-optimization-keep');
+    if (savedKeep !== null) {
+      this.recentMessagesToKeep = JSON.parse(savedKeep);
     }
   }
 
   saveOptimizationSettings() {
     localStorage.setItem('claude-optimization-enabled', JSON.stringify(this.claudeOptimizationEnabled));
+    localStorage.setItem('claude-optimization-trigger', JSON.stringify(this.optimizationTrigger));
+    localStorage.setItem('claude-optimization-keep', JSON.stringify(this.recentMessagesToKeep));
   }
 
   onClaudeOptimizationChange() {
+    this.saveOptimizationSettings();
+  }
+
+  onOptimizationSettingsChange() {
+    // Validate and constrain values
+    this.optimizationTrigger = Math.max(5, Math.min(50, this.optimizationTrigger));
+    this.recentMessagesToKeep = Math.max(2, Math.min(20, this.recentMessagesToKeep));
+    
+    // Ensure recent messages to keep is less than trigger
+    if (this.recentMessagesToKeep >= this.optimizationTrigger) {
+      this.recentMessagesToKeep = Math.max(2, this.optimizationTrigger - 2);
+    }
+    
     this.saveOptimizationSettings();
   }
 
